@@ -1,0 +1,39 @@
+model Payment {
+  id                     Int                    @id @default(autoincrement())
+
+  user                   User                   @relation(fields: [userID], references: [id])
+  userID                 Int
+
+  order                  Order                  @relation(fields: [orderID], references: [id])
+  orderID                Int
+
+  amount                 Float
+  status                 PaymentStatus          @default(PROCESSING)
+  paymentMethod          PaymentMethod          @default(ONLINE)
+  paymentGatewayProvider PaymentGatewayProvider @default(CARD)
+  transactionReference   String?
+  createdAt              DateTime               @default(now())
+  updatedAt              DateTime               @updatedAt
+
+  @@map("payments")
+}
+
+enum PaymentMethod {
+  ONLINE
+  ONDELIVERY
+}
+
+enum PaymentStatus {
+  PROCESSING // default
+  SUCCESS
+  TIMEOUT
+  CANCELLED
+  INSUFFICIENTBALANCE
+  FAILED
+}
+
+enum PaymentGatewayProvider {
+  CARD // default
+  PAYPAL
+  CRYPTO
+}

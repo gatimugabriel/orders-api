@@ -1,0 +1,18 @@
+model Token {
+  id        Int         @id @default(autoincrement())
+  user      User        @relation(fields: [userID], references: [id])
+  userID    Int
+  token     String
+  action    TokenAction @default(AUTH)
+  expires   DateTime
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  @@map("tokens")
+}
+
+enum TokenAction {
+  AUTH
+  EMAIL_VERIFICATION
+  PASSWORD_RESET
+}

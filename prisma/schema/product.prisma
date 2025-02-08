@@ -1,0 +1,28 @@
+model Product {
+  id          Int      @id @default(autoincrement())
+  name        String
+  description String
+  images      String[]
+  category    String[]
+  brand       String
+  quantity    String?
+  dimensions  String?
+
+  price        Float
+  discountRate Float?
+  stock        Int
+
+  featured Boolean @default(false)
+  slug     String
+
+  Order     Order?      @relation(fields: [orderID], references: [id])
+  orderID   Int?
+  OrderItem OrderItem[]
+
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  @@map("products")
+}
+
+

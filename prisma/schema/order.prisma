@@ -1,0 +1,43 @@
+model Order {
+  id                    Int          @id @default(autoincrement())
+  items                 OrderItem[]
+  totalItems            Int
+  totalPrice            Float
+  status                OrderStatus  @default(PROCESSING)
+  shippingAddress String?
+  deliveryMethod        String
+
+  userID                Int
+  user                  User         @relation(fields: [userID], references: [id])
+  product               Product[]
+  payment               Payment[]
+
+  createdAt             DateTime     @default(now())
+  updatedAt             DateTime     @updatedAt
+
+  @@map("orders")
+}
+
+model OrderItem {
+  id        Int      @id @default(autoincrement())
+  price     Float
+  quantity  Int
+
+  order     Order    @relation(fields: [orderID], references: [id])
+  orderID   Int
+
+  product   Product? @relation(fields: [productID], references: [id])
+  productID Int?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("order_items")
+}
+
+enum OrderStatus {
+  PROCESSING // default
+  SHIPPING
+  DELIVERED
+  CANCELLED
+}
