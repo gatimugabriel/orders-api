@@ -1,0 +1,43 @@
+{
+  "name": "orders-api",
+  "author": "Gabriel Gatimu",
+  "license": "MIT",
+  "scripts": {
+    "queries": "ts-node ./src/queries.ts",
+    "caching": "ts-node ./src/caching.ts",
+    "realtime": "ts-node ./src/realtime.ts",
+    "start" :"ts-node ./src/app.ts",
+    "seed": "ts-node ./prisma/dummyData/seeder.ts"
+  },
+  "dependencies": {
+    "@prisma/client": "6.3.1",
+    "@prisma/extension-accelerate": "1.2.1",
+    "@prisma/extension-pulse": "1.2.0",
+    "@types/node": "22.13.1",
+    "bcrypt": "^5.1.1",
+    "cloudinary": "^2.5.1",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.5",
+    "dotenv": "16.4.7",
+    "express": "^4.21.2",
+    "express-async-handler": "^1.2.0",
+    "express-fileupload": "^1.5.1",
+    "express-validator": "^7.2.1",
+    "jsonwebtoken": "^9.0.2",
+    "morgan": "^1.10.0",
+    "nodemailer": "^6.10.0"
+  },
+  "devDependencies": {
+    "@types/bcrypt": "^5.0.2",
+    "@types/cookie-parser": "^1.4.8",
+    "@types/cors": "^2.8.17",
+    "@types/express": "^5.0.0",
+    "@types/express-fileupload": "^1.5.1",
+    "@types/jsonwebtoken": "^9.0.8",
+    "@types/morgan": "^1.9.9",
+    "@types/nodemailer": "^6.4.17",
+    "prisma": "6.3.1",
+    "ts-node": "10.9.2",
+    "typescript": "5.7.3"
+  }
+}
