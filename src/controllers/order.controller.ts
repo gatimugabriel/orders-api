@@ -103,6 +103,41 @@ export const createOrder = asyncHandler(async (req: ExtendedRequest, res: Respon
     }
 });
 
+
+// @ desc --- Get Multiple Orders
+// @ route  --GET-- [base_api]/orders
+export const fetchOrders = asyncHandler(async (req: Request, res: Response) => {
+    const { page } = req.query
+    const pageNumber = typeof page === "string" ? Number(page) - 1 : 0
+    const limit = 12
+    const skipValues = pageNumber * limit
+
+    const totalCount = await Order.count()
+    const orders = await Order.findMany({
+        skip: skipValues,
+        take: limit,
+        include: {
+            user: {select: {email: true}},
+            items: {
+                include: {
+                    product: true,
+                }
+            },
+            payment: true
+        },
+        cacheStrategy: {
+            ttl: 60 , // 1 min
+            swr: 120 // 2 min
+        }
+    });
+    res.status(200).json({
+        page: pageNumber + 1,
+        count: orders.length,
+        totalCount,
+        data: orders
+    });
+});
+
 // @ desc --- Get Single Order
 // @ route  --GET-- [base_api]/orders/get/:id
 export const getOrder = asyncHandler(async (req: Request, res: Response) => {
@@ -155,39 +190,6 @@ export const searchOrder = asyncHandler(async (req: Request, res: Response) => {
     res.status(200).json({ data })
 })
 
-// @ desc --- Get Multiple Orders
-// @ route  --GET-- [base_api]/orders/all
-export const fetchOrders = asyncHandler(async (req: Request, res: Response) => {
-    const { page } = req.query
-    const pageNumber = typeof page === "string" ? Number(page) - 1 : 0
-    const limit = 12
-    const skipValues = pageNumber * limit
-
-    const totalCount = await Order.count()
-    const orders = await Order.findMany({
-        skip: skipValues,
-        take: limit,
-        include: {
-            user: {select: {email: true}},
-            items: {
-                include: {
-                    product: true,
-                    // service: true
-                }
-            },
-            payment: true
-        },
-        cacheStrategy: {
-            ttl: 60 , // 1 min
-            swr: 120 // 2 min
-        }
-    });
-    res.status(200).json({
-        totalCount,
-        page: pageNumber + 1,
-        data: orders
-    });
-});
 
 // @ desc --- Update Product
 // @ route  --PUT-- [base_api]/orders/:id
