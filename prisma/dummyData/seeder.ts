@@ -1,6 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import { productsSeedData } from './models/products';
-import {userSeedData} from "./models/users";
+// import {userSeedData} from "./models/users";
 
 const prisma = new PrismaClient();
 
@@ -16,13 +16,13 @@ async function main() {
         }
         console.log('Products seeded successfully.\n\n');
 
-        console.log('Seeding users...');
+        // console.log('Seeding users...');
         // for (const user of userSeedData) {
         //     await prisma.user.create({
         //         data: user,
         //     });
         // }
-        console.log('Users seeded successfully.\n\n');
+        // console.log('Users seeded successfully.\n\n');
 
 
         console.log('Seeding completed successfully.');

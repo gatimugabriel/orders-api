@@ -5,7 +5,7 @@ model Product {
   images      String[]
   category    String[]
   brand       String
-  quantity    String?
+  weight      Int? // weight / size
   dimensions  String?
 
   price        Float
@@ -19,10 +19,8 @@ model Product {
   orderID   Int?
   OrderItem OrderItem[]
 
-  createdAt DateTime    @default(now())
-  updatedAt DateTime    @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@map("products")
 }
-
-
