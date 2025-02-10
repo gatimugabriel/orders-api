@@ -2,13 +2,12 @@ import crypto from "node:crypto";
 
 const ALGORITHM = 'aes-256-gcm';
 const IV_LENGTH = 12;
-const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY
 const TAG_LENGTH = 16;
 
 function encryptPayload(payload: any): string {
+    const keyBuffer = getKeyBuffer();
     const iv = crypto.randomBytes(IV_LENGTH);
-
-    const cipher = crypto.createCipheriv(ALGORITHM, Buffer.from(ENCRYPTION_KEY as string), iv);
+    const cipher = crypto.createCipheriv(ALGORITHM, keyBuffer, iv);
 
     // Encrypt
     let encrypted = cipher.update(JSON.stringify(payload), 'utf8', 'base64');
@@ -16,15 +15,14 @@ function encryptPayload(payload: any): string {
 
     // Get the auth tag
     const tag = cipher.getAuthTag();
-
     const result = Buffer.concat([iv, tag, Buffer.from(encrypted, 'base64')]);
 
-    // Return as base64 string
     return result.toString('base64');
 }
 
 function decryptPayload(encryptedPayload: string): any {
     try {
+        const keyBuffer = getKeyBuffer();
         const buffer = Buffer.from(encryptedPayload, 'base64');
 
         // Extract IV, tag and encrypted data
@@ -33,7 +31,7 @@ function decryptPayload(encryptedPayload: string): any {
         const encrypted = buffer.subarray(IV_LENGTH + TAG_LENGTH);
 
         // Create decipher
-        const decipher = crypto.createDecipheriv(ALGORITHM, Buffer.from(ENCRYPTION_KEY as string), iv);
+        const decipher = crypto.createDecipheriv(ALGORITHM, keyBuffer, iv);
         decipher.setAuthTag(tag);
 
         // Decrypt the data
@@ -46,4 +44,16 @@ function decryptPayload(encryptedPayload: string): any {
     }
 }
 
-export { encryptPayload, decryptPayload }
+function getKeyBuffer(): Buffer {
+    if (!process.env.ENCRYPTION_KEY) {
+        throw new Error("encryption key not provided!");
+    }
+    // Decode the base64 key back to a buffer
+    const keyBuffer = Buffer.from(process.env.ENCRYPTION_KEY, 'base64');
+    if (keyBuffer.length !== 32) {
+        throw new Error('Encryption key must be exactly 32 bytes long');
+    }
+    return keyBuffer;
+}
+
+export { encryptPayload, decryptPayload };

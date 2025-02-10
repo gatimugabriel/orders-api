@@ -1,10 +1,10 @@
-import {NextFunction, Request, Response} from "express";
+import { NextFunction, Request, Response } from "express";
 import asyncHandler from "express-async-handler";
 import bcrypt from "bcrypt";
-import {ExtendedRequest} from "../@types/express";
-import {PrismaClient} from "@prisma/client";
-import {withAccelerate} from "@prisma/extension-accelerate";
-import {generateAuthTokens} from "../utils/token.util";
+import { ExtendedRequest } from "../@types/express";
+import { PrismaClient } from "@prisma/client";
+import { withAccelerate } from "@prisma/extension-accelerate";
+import { generateAuthTokens } from "../utils/token.util";
 
 const prisma = new PrismaClient().$extends(withAccelerate());
 const User = prisma.user
@@ -13,20 +13,10 @@ const Token = prisma.token
 // @ desc --- Create new user
 // @ route  --POST-- [base_api]/auth/signup`
 export const signUp = asyncHandler(async (req: Request, res: Response) => {
-    const {username, password, confirm_password, first_name, last_name, email, role} = req.body;
-    if (password !== confirm_password) {
-        res.status(400);
-        throw new Error("Passwords do not match! ");
-    }
+    const { password, first_name, last_name, email, role } = req.body;
 
-
-    const emailExists = await User.findUnique({where: {email}});
+    const emailExists = await User.findUnique({ where: { email } });
     if (emailExists) {
-        if (emailExists.auth_source !== "BASIC") {
-            res.status(409);
-            throw new Error(`Email is already used in this platform. Login using  ${emailExists.auth_source} using that email account`);
-        }
-
         res.status(409);
         throw new Error("Email is already used in this platform. Try another one");
     }
@@ -47,16 +37,8 @@ export const signUp = asyncHandler(async (req: Request, res: Response) => {
         throw new Error("Failed to create user. Try again later");
     }
 
-    // generate verification tokens
-    const userName = newUser.first_name + ' ' + newUser.last_name
-    // const {accessToken, refreshToken} = tokenUtil.tokenGenerator(res, {
-    //     userId: newUser.id,
-    //     userName,
-    //     email: newUser.email,
-    //     role: newUser.role
-    // });
-
-    const {accessToken, refreshToken} = generateAuthTokens(newUser.id, newUser.role)
+    // generate auth tokens
+    const { accessToken, refreshToken } = generateAuthTokens(newUser.id, newUser.role)
 
     // save REFRESH  token
     await Token.create({
@@ -79,9 +61,9 @@ export const signUp = asyncHandler(async (req: Request, res: Response) => {
 // @ desc ---- User Login -> set tokens
 // @ route  --POST-- [base_api]/auth/signIn
 export const signIn = asyncHandler(async (req: ExtendedRequest, res: Response, next: NextFunction) => {
-    const {email, password} = req.body;
+    const { email, password } = req.body;
 
-    const user = await User.findUnique({where: {email}});
+    const user = await User.findUnique({ where: { email } });
     if (!user) {
         res.status(404);
         throw new Error("Invalid credentials");
@@ -92,7 +74,7 @@ export const signIn = asyncHandler(async (req: ExtendedRequest, res: Response, n
         throw new Error("Invalid credentials");
     }
 
-    const {accessToken, refreshToken} = generateAuthTokens(user.id, user.role)
+    const { accessToken, refreshToken } = generateAuthTokens(user.id, user.role)
 
     // save REFRESH  token
     await Token.create({
@@ -104,16 +86,16 @@ export const signIn = asyncHandler(async (req: ExtendedRequest, res: Response, n
         }
     });
 
-    res.status(200).json({accessToken})
+    res.status(200).json({ accessToken })
 });
 
 // @ desc ---- Logout user -> destroy refresh token
 // @ route--GET-- [base_api] / auth / sign - out
 export const signOut = asyncHandler(async (req: ExtendedRequest, res: Response) => {
-    const {user} = req
+    const { user } = req
 
     const destroyToken = await Token.deleteMany({
-        where: {userID: user?.userId as number, action: "AUTH"},
+        where: { userID: user?.userId as number, action: "AUTH" },
     });
 
     if (!destroyToken) {
@@ -125,15 +107,15 @@ export const signOut = asyncHandler(async (req: ExtendedRequest, res: Response) 
     res.clearCookie("accessToken");
     res.clearCookie("refreshToken");
 
-    res.status(200).json({success: true, message: "Logged Out"});
+    res.status(200).json({ success: true, message: "Logged Out" });
 });
 
 // @ desc ---- Refresh Access Token
 // @ route  --POST-- [base_api]/auth/refresh
 export const refresh = asyncHandler(async (req: ExtendedRequest, res: Response) => {
-    const {user} = req;
+    const { user } = req;
     const currentUser = await User.findUnique({
-        where: {id: user?.userId as number}
+        where: { id: user?.userId as number }
     });
 
     if (!currentUser) {
@@ -142,7 +124,7 @@ export const refresh = asyncHandler(async (req: ExtendedRequest, res: Response) 
     }
 
     // generate new access token
-   const {accessToken, refreshToken}= generateAuthTokens(currentUser.id, currentUser.role)
+    const { accessToken, refreshToken } = generateAuthTokens(currentUser.id, currentUser.role)
 
-    res.status(200).json({accessToken: accessToken});
+    res.status(200).json({ accessToken: accessToken });
 });
