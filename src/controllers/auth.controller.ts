@@ -50,6 +50,20 @@ export const signUp = asyncHandler(async (req: Request, res: Response) => {
         }
     });
 
+
+    res.cookie("accessToken", accessToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV !== "development",
+        sameSite: "strict",
+        maxAge: 15 * 60 * 1000 //15 min
+    });
+    res.cookie("refreshToken", refreshToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV !== "development",
+        sameSite: "strict",
+        maxAge: 15 * 24 * 60 * 60 * 1000 // 15 days
+    });
+
     res.status(201).json({
         message: "User created successfully",
         user: newUser,
@@ -85,6 +99,20 @@ export const signIn = asyncHandler(async (req: ExtendedRequest, res: Response, n
             expires: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 days
         }
     });
+
+    res.cookie("accessToken", accessToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV !== "development",
+        sameSite: "strict",
+        maxAge: 15 * 60 * 1000 //15 min
+    });
+    res.cookie("refreshToken", refreshToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV !== "development",
+        sameSite: "strict",
+        maxAge: 15 * 24 * 60 * 60 * 1000 // 15 days
+    });
+
 
     res.status(200).json({ accessToken })
 });
