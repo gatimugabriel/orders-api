@@ -222,14 +222,14 @@ export const searchOrder = asyncHandler(async (req: Request, res: Response) => {
 // @ route  --PUT-- [base_api]/orders/:id
 export const updateOrder = asyncHandler(async (req: Request, res: Response) => {
     const {id} = req.params;
-    const {status, shippingAddress, billingAddress} = req.body;
+    const {status, shippingAddress, deliveryMethod} = req.body;
 
     const updateOrder = await Order.update({
         where: {id: Number(id)},
         data: {
             status,
-            // shippingAddress,
-            // billingAddress,
+            shippingAddress,
+            deliveryMethod,
         },
     });
     if (!updateOrder) {
