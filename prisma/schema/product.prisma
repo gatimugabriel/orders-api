@@ -15,8 +15,6 @@ model Product {
   featured Boolean @default(false)
   slug     String
 
-  Order     Order?      @relation(fields: [orderID], references: [id])
-  orderID   Int?
   OrderItem OrderItem[]
 
   createdAt DateTime @default(now())

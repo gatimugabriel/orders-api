@@ -1,26 +1,19 @@
 model Payment {
-  id                     Int                    @id @default(autoincrement())
-
-  user                   User                   @relation(fields: [userID], references: [id])
-  userID                 Int
-
-  order                  Order                  @relation(fields: [orderID], references: [id])
-  orderID                Int
+  id     Int    @id @default(autoincrement())
+  user   User   @relation(fields: [userID], references: [id])
+  userID Int
+  order  Order?
 
   amount                 Float
   status                 PaymentStatus          @default(PROCESSING)
-  paymentMethod          PaymentMethod          @default(ONLINE)
-  paymentGatewayProvider PaymentGatewayProvider @default(CARD)
+  paymentMethod          PaymentMethod          @default(CARD)
+  paymentGatewayProvider PaymentGatewayProvider @default(STRIPE)
+  paymentMode            PaymentMode            @default(ONLINE)
   transactionReference   String?
   createdAt              DateTime               @default(now())
   updatedAt              DateTime               @updatedAt
 
   @@map("payments")
-}
-
-enum PaymentMethod {
-  ONLINE
-  ONDELIVERY
 }
 
 enum PaymentStatus {
@@ -33,7 +26,18 @@ enum PaymentStatus {
 }
 
 enum PaymentGatewayProvider {
+  STRIPE
+  PAYPAL
+  HELCIM
+}
+
+enum PaymentMethod {
   CARD // default
   PAYPAL
   CRYPTO
+}
+
+enum PaymentMode {
+  ONLINE
+  ONDELIVERY
 }

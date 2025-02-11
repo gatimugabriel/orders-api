@@ -1,33 +1,36 @@
 model Order {
-  id                    Int          @id @default(autoincrement())
-  items                 OrderItem[]
-  totalItems            Int
-  totalPrice            Float
-  status                OrderStatus  @default(PROCESSING)
+  id Int @id @default(autoincrement())
+
+  items           OrderItem[]
+  // productsCount Int
+  totalItems      Int
+  totalPrice      Float
+  status          OrderStatus @default(PENDING)
   shippingAddress String?
-  deliveryMethod        String
+  deliveryMethod  String
 
-  userID                Int
-  user                  User         @relation(fields: [userID], references: [id])
-  product               Product[]
-  payment               Payment[]
+  userID    Int
+  user      User    @relation(fields: [userID], references: [id])
+  paymentID Int     @unique
+  payment   Payment @relation(fields: [paymentID], references: [id])
 
-  createdAt             DateTime     @default(now())
-  updatedAt             DateTime     @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@map("orders")
 }
 
 model OrderItem {
-  id        Int      @id @default(autoincrement())
-  price     Float
-  quantity  Int
+  id Int @id @default(autoincrement())
 
-  order     Order    @relation(fields: [orderID], references: [id])
-  orderID   Int
+  productID             Int
+  product               Product? @relation(fields: [productID], references: [id])
+  quantity              Int
+  price_at_time         Float
+  discount_rate_at_time Float?
 
-  product   Product? @relation(fields: [productID], references: [id])
-  productID Int?
+  orderID Int
+  order   Order @relation(fields: [orderID], references: [id])
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -36,8 +39,8 @@ model OrderItem {
 }
 
 enum OrderStatus {
-  PROCESSING // default
-  SHIPPING
+  PENDING // default
+  SHIPPED
   DELIVERED
   CANCELLED
 }
