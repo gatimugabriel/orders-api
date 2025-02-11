@@ -1,33 +1,44 @@
-import { Router } from 'express';
-import { fetchProducts, fetchFeaturedProducts, getProduct, searchProduct, addProduct, updateProduct, deleteProduct} from '../controllers/product.controller';
-import {requireBody, validate} from "../middleware/validation/base.middleware";
-import {authenticate} from "../middleware/auth/auth.middleware";
-import {validateProductEntry} from "../middleware/validation/product.middleware";
+import { Router } from 'express'
+import {
+    createProduct,
+    deleteProduct,
+    fetchFeaturedProducts,
+    fetchProducts,
+    getProduct,
+    searchProduct,
+    updateProduct
+} from '../controllers/product.controller'
+import { requireBody, validate } from "../middleware/validation/base.middleware"
+import { authenticate } from "../middleware/auth/auth.middleware"
+import { validateProductEntry } from "../middleware/validation/product.middleware"
+import { isContentManager, isAdminOrManager } from "../middleware/auth/role.middleware"
 
-const router = Router();
+const router = Router()
 
-// --- public routes
-router.get('/all', fetchProducts);
-router.get('/featured', fetchFeaturedProducts);
-router.get('/get/:id', getProduct);
-router.get('/search/s', searchProduct);
+//___ public routes ___//
+router.get('/', fetchProducts)
+router.get('/:id', getProduct)
+router.get('/featured', fetchFeaturedProducts)
+router.get('/search', searchProduct)
 
-// --- private routes
-router.use(authenticate);
+//___ private routes ____//
+router.use(authenticate)
 
-// add product
 router.post('/',
     [
         requireBody,
+        isContentManager,
         ...validateProductEntry,
         validate
     ],
-    addProduct
+    createProduct
 )
 
 router.route('/:id')
-    .put([requireBody], updateProduct) // update
-    .delete(deleteProduct); // delete
+    .put([
+        requireBody,
+        isAdminOrManager
+    ], updateProduct)
+    .delete(isAdminOrManager, deleteProduct)
 
-
-export default router;
+export default router
