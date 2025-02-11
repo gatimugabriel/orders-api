@@ -1,8 +1,10 @@
 import {Request, Response} from "express";
 import {ExtendedRequest} from "../@types/express";
 import asyncHandler from "express-async-handler";
-import {PrismaClient} from "@prisma/client";
+import {PrismaClient, Prisma} from "@prisma/client";
+import { OrderStatus } from '@prisma/client'
 import {withAccelerate} from "@prisma/extension-accelerate";
+import { SearchOrderQuery } from "../@types/types";
 
 const prisma = new PrismaClient({
     transactionOptions: {
@@ -11,9 +13,6 @@ const prisma = new PrismaClient({
     }
 }).$extends(withAccelerate());
 const Order = prisma.order
-const Product = prisma.product
-const OrderItem = prisma.orderItem
-const Payment = prisma.payment
 
 // @ desc --- Create Order
 // @ route  --POST-- [base_api]/orders
@@ -29,8 +28,6 @@ export const createOrder = asyncHandler(async (req: ExtendedRequest, res: Respon
         paymentMethod,
         paymentMode
     } = req.body;
-
-    console.log("body", req.body);
 
     // --- START TRANSACTION --- //
     try {
@@ -194,29 +191,151 @@ export const getOrder = asyncHandler(async (req: Request, res: Response) => {
     });
 });
 
-// @ desc --- Search for Order(s)
-// @ route  --GET-- [base_api]/orders/search/s
+// @ desc --- Search for Order(s) with pagination
+// @ route  --GET-- [base_api]/orders/search
 export const searchOrder = asyncHandler(async (req: Request, res: Response) => {
-    const shippingAddress = req.query.shippingAddress as string
-    const billingAddress = req.query.billingAddress as string
-    const minPrice = req.query.minPrice as string
-    const maxPrice = req.query.maxPrice as string
+    const {
+        shippingAddress,
+        deliveryMethod,
+        status,
+        minPrice,
+        maxPrice,
+        minItems,
+        maxItems,
+        startDate,
+        endDate,
+        userID,
+        page = '1',
+        limit = '10'
+    } = req.query as SearchOrderQuery
 
-    const data = await Order.findMany({
-        where: {status: {not: "CANCELLED"}},
+    const pageNum = Math.max(1, parseInt(page))
+    const limitNum = Math.max(1, Math.min(50, parseInt(limit))) // 50 items per page
+    const skip = (pageNum - 1) * limitNum
 
-        // where: {
-        //     AND: [
-        //         { shippingAddress: { contains: shippingAddress, mode: 'insensitive' } },
-        //         { billingAddress: billingAddress }
-        //     ]
-        // },
-        take: 25
+    const whereClause: Prisma.OrderWhereInput = {
+        AND: []
+    }
+
+    // @ts-ignore
+    whereClause.AND.push({ status: { not: 'CANCELLED' } })
+
+    // optional filters
+    if (shippingAddress) {
+        // @ts-ignore
+        whereClause.AND.push({
+            shippingAddress: { contains: shippingAddress, mode: 'insensitive' }
+        })
+    }
+
+    if (deliveryMethod) {
+        // @ts-ignore
+        whereClause.AND.push({
+            deliveryMethod: { contains: deliveryMethod, mode: 'insensitive' }
+        })
+    }
+
+    if (status && Object.values(OrderStatus).includes(status as OrderStatus)) {
+        // @ts-ignore
+        whereClause.AND.push({ status })
+    }
+
+    if (minPrice || maxPrice) {
+        // @ts-ignore
+        whereClause.AND.push({
+            totalPrice: {
+                gte: minPrice ? parseFloat(minPrice) : undefined,
+                lte: maxPrice ? parseFloat(maxPrice) : undefined
+            }
+        })
+    }
+
+    if (minItems || maxItems) {
+        // @ts-ignore
+        whereClause.AND.push({
+            totalItems: {
+                gte: minItems ? parseInt(minItems) : undefined,
+                lte: maxItems ? parseInt(maxItems) : undefined
+            }
+        })
+    }
+
+    if (startDate || endDate) {
+        // @ts-ignore
+        whereClause.AND.push({
+            createdAt: {
+                gte: startDate ? new Date(startDate) : undefined,
+                lte: endDate ? new Date(endDate) : undefined
+            }
+        })
+    }
+
+    if (userID) {
+        // @ts-ignore
+        whereClause.AND.push({
+            userID: parseInt(userID)
+        })
+    }
+
+    // Execute query with pagination
+    const [data, total] = await Promise.all([
+        Order.findMany({
+            where: whereClause,
+            include: {
+                items: {
+                    include: {
+                        product: {
+                            select: {
+                                id: true,
+                                name: true,
+                                images: true
+                            }
+                        }
+                    }
+                },
+                user: {
+                    select: {
+                        id: true,
+                        email: true
+                    }
+                },
+                payment: {
+                    select: {
+                        id: true,
+                        status: true,
+                        paymentMethod: true,
+                        paymentGatewayProvider: true,
+                        paymentMode: true
+                    }
+                }
+            },
+            skip,
+            take: limitNum,
+            orderBy: {
+                createdAt: 'desc'
+            }
+        }),
+        Order.count({ where: whereClause })
+    ])
+
+    // pagination metadata
+    const totalPages = Math.ceil(total / limitNum)
+    const hasNext = pageNum < totalPages
+    const hasPrev = pageNum > 1
+
+    res.status(200).json({
+        success: true,
+        pagination: {
+            page: pageNum,
+            limit: limitNum,
+            total,
+            totalPages,
+            hasNext,
+            hasPrev
+        },
+        data,
     })
-
-    res.status(200).json({data})
 })
-
 
 // @ desc --- Update Product
 // @ route  --PUT-- [base_api]/orders/:id
