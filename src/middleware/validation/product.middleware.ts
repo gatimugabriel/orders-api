@@ -10,7 +10,7 @@ export const validateProductEntry = [
     check("stock", "Product stock is required").not().isEmpty(),
     check("slug", "Product slug is required").not().isEmpty(),
     check("brand", "Product brand is required").not().isEmpty(),
-    check("quantity", "Product weight is required").not().isEmpty(),
+    check("weight", "Product weight is required").not().isEmpty(),
     // check("dimensions", "Product dimensions is required").not().isEmpty(),
     check('images').custom((value, { req }) => {
         if (!req.files || Object.keys(req.files).length === 0) {
