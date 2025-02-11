@@ -19,7 +19,7 @@ router.post('/',
 )
 
 router.get('/', fetchOrders);
-router.get('/search', searchOrder);
+router.get('/search/s', searchOrder);
 router.route('/:id')
     .get(getOrder) 
     .put([requireBody], updateOrder) 

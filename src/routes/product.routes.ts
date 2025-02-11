@@ -18,8 +18,8 @@ const router = Router()
 //___ public routes ___//
 router.get('/', fetchProducts)
 router.get('/:id', getProduct)
+router.get('/search/s', searchProduct)
 router.get('/featured', fetchFeaturedProducts)
-router.get('/search', searchProduct)
 
 //___ private routes ____//
 router.use(authenticate)
