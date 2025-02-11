@@ -1,8 +1,8 @@
-import { Request, Response } from "express";
-import { ExtendedRequest } from "../@types/express";
+import {Request, Response} from "express";
+import {ExtendedRequest} from "../@types/express";
 import asyncHandler from "express-async-handler";
-import { PrismaClient } from "@prisma/client";
-import { withAccelerate } from "@prisma/extension-accelerate";
+import {PrismaClient} from "@prisma/client";
+import {withAccelerate} from "@prisma/extension-accelerate";
 
 const prisma = new PrismaClient({
     transactionOptions: {
@@ -18,115 +18,139 @@ const Payment = prisma.payment
 // @ desc --- Create Order
 // @ route  --POST-- [base_api]/orders
 export const createOrder = asyncHandler(async (req: ExtendedRequest, res: Response) => {
-    const { user } = req;
-    const userID = user?.userId as number;
+    const {user} = req;
+    const userID = user?.userID as number;
     const {
-        items,
-        totalCartValue,
-        totalCartQuantity,
+        items, // [ {productID, quantity}, {...}]
         deliveryMethod,
-        isPrimaryAddress,
-        addressBook,
+        shippingAddress,
+
+        paymentGatewayProvider,
         paymentMethod,
-        paymentGatewayProvider
+        paymentMode
     } = req.body;
+
+    console.log("body", req.body);
 
     // --- START TRANSACTION --- //
     try {
         const transaction = await prisma.$transaction(async (tx: any) => {
 
-            const orderData: any = {
-                user: { connect: { id: userID } },
-                totalItems: totalCartQuantity as number,
-                totalPrice: totalCartValue,
-                deliveryMethod,
-                customShippingAddress: isPrimaryAddress
-                    ? null
-                    : JSON.stringify(addressBook), // custom address stored as a string
-            };
-
-            if (isPrimaryAddress) {
-                orderData.userAddress = { connect: { id: addressBook.id } };
-            }
-
-            const order = await tx.order.create({
-                data: orderData,
+            // Fetch all products and calculate totals
+            const products = await tx.product.findMany({
+                where: {
+                    id: {
+                        in: items.map((item: any) => item.productID)
+                    }
+                }
             });
 
-            // Create order-items
-            const orderItems = await Promise.all(
-                items.map(async (item: any) => {
-                    const { id: productID, quantity } = item;
+            // Validate all products exist
+            if (products.length !== items.length) {
+                // Get which products are missing in fetched products
+                const missingProducts = items.filter((item: any) => !products.find((p: any) => p.id === item.productID));
+                res.status(404);
+                throw new Error(`Product(s) with id(s) ${missingProducts.map((p: any) => p.productID).join(', ')} not found`);
+            }
 
-                    const product = await Product.findUnique({
-                        where: { id: productID },
-                    });
+            let totalItems = 0;
+            let totalPrice = 0;
 
-                    if (!product) {
-                        res.status(404);
-                        throw new Error(`Product with id ${productID} not found`);
-                    }
+            const orderItems = items.map((item: any) => {
+                const product = products.find((p: any) => p.id === item.productID);
+                if (!product) throw new Error(`Product ${item.productId} not found`);
 
-                    return tx.orderItem.create({
-                        data: {
-                            order: { connect: { id: order.id } },
-                            product: { connect: { id: productID } },
-                            price: product.price,
-                            quantity,
-                        },
-                    });
-                })
-            );
+                totalItems += item.quantity;
+                const itemPrice = product.price * item.quantity;
+                const discountedPrice = product.discountRate
+                    ? itemPrice * (1 - (product.discountRate / 100))
+                    : itemPrice;
+                totalPrice += discountedPrice;
 
-            // Create payment record
+                return {
+                    productID: product.id,
+                    quantity: item.quantity,
+                    price_at_time: product.price,
+                    discount_rate_at_time: product.discountRate || null
+                };
+            });
+
+            const orderData = {
+                user: {connect: {id: userID}},
+                totalItems,
+                totalPrice,
+                deliveryMethod,
+                shippingAddress,
+                items: {
+                    create: orderItems
+                }
+            };
+
+            //____ Create PAYMENT record ____//
             const payment = await tx.payment.create({
                 data: {
-                    user: { connect: { id: userID } },
-                    order: { connect: { id: order.id } },
-                    amount: totalCartValue,
+                    user: {connect: {id: userID}},
+                    amount: totalPrice,
+                    paymentGatewayProvider,
                     paymentMethod,
-                    paymentGatewayProvider
+                    paymentMode
                 },
             });
 
-            return { order, orderItems, payment };
-        })
+            //____ Create ORDER ____//
+            const order = await tx.order.create({
+                data: {
+                    ...orderData,
+                    payment: {connect: {id: payment.id}}  // Connect the order to payment
+                },
+            });
+
+            return {order, payment};
+        });
 
         res.status(201).json({
             message: 'Order placed successfully. You will receive an email confirmation',
             data: transaction
         });
-    } catch (error:any) {
+    } catch (error: any) {
         console.error('\t\t Error : \n', error);
-        res.status(500)
+        res.status(500);
         throw new Error(error.message || error || 'Something went wrong');
     }
 });
 
-
 // @ desc --- Get Multiple Orders
 // @ route  --GET-- [base_api]/orders
 export const fetchOrders = asyncHandler(async (req: Request, res: Response) => {
-    const { page } = req.query
-    const pageNumber = typeof page === "string" ? Number(page) - 1 : 0
-    const limit = 12
-    const skipValues = pageNumber * limit
+    let {page, limit} = req.query
+    const pageNumber = parseInt(page as string) - 1 || 0
+    const intLimit = parseInt(limit as string) || 10
+    const skipValues = pageNumber * intLimit
 
     const totalCount = await Order.count()
     const orders = await Order.findMany({
         skip: skipValues,
-        take: limit,
+        take: intLimit,
         include: {
-            user: {select: {email: true}},
             items: {
                 include: {
-                    product: true,
+                    product: {
+                        select: {
+                            name: true,
+                            description: true,
+                            images: true,
+                            category: true,
+                            brand: true,
+                            slug: true
+                        }
+                    }
                 }
             },
-            payment: true
+            user: {select: {email: true}},
+            // payment: true
         },
         cacheStrategy: {
-            ttl: 60 , // 1 min
+            ttl: 60, // 1 min
             swr: 120 // 2 min
         }
     });
@@ -141,9 +165,9 @@ export const fetchOrders = asyncHandler(async (req: Request, res: Response) => {
 // @ desc --- Get Single Order
 // @ route  --GET-- [base_api]/orders/get/:id
 export const getOrder = asyncHandler(async (req: Request, res: Response) => {
-    const { id } = req.params;
+    const {id} = req.params;
     const order = await Order.findUnique({
-        where: { id: Number(id) },
+        where: {id: Number(id)},
         include: {
             user: {select: {email: true}},
             items: {
@@ -151,7 +175,7 @@ export const getOrder = asyncHandler(async (req: Request, res: Response) => {
                     product: true
                 }
             },
-            payment: true,
+            // payment: true,
         },
         cacheStrategy: {
             ttl: 3600, // 1 hour
@@ -187,18 +211,18 @@ export const searchOrder = asyncHandler(async (req: Request, res: Response) => {
         take: 25
     })
 
-    res.status(200).json({ data })
+    res.status(200).json({data})
 })
 
 
 // @ desc --- Update Product
 // @ route  --PUT-- [base_api]/orders/:id
 export const updateOrder = asyncHandler(async (req: Request, res: Response) => {
-    const { id } = req.params;
-    const { status, shippingAddress, billingAddress } = req.body;
+    const {id} = req.params;
+    const {status, shippingAddress, billingAddress} = req.body;
 
     const updateOrder = await Order.update({
-        where: { id: Number(id) },
+        where: {id: Number(id)},
         data: {
             status,
             // shippingAddress,
@@ -219,10 +243,10 @@ export const updateOrder = asyncHandler(async (req: Request, res: Response) => {
 // @ desc --- Delete Order
 // @ route  --DELETE-- [base_api]/orders/:id
 export const deleteOrder = asyncHandler(async (req: Request, res: Response) => {
-    const { id } = req.params;
+    const {id} = req.params;
 
     const deleteOrder = await Order.delete({
-        where: { id: Number(id) }
+        where: {id: Number(id)}
     });
 
     if (!deleteOrder) {
@@ -230,5 +254,5 @@ export const deleteOrder = asyncHandler(async (req: Request, res: Response) => {
         throw new Error("Failed to delete Order. Try again later");
     }
 
-    res.status(200).json({ message: "Order deleted successfully" });
+    res.status(200).json({message: "Order deleted successfully"});
 })
