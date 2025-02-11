@@ -129,6 +129,7 @@ export const fetchOrders = asyncHandler(async (req: Request, res: Response) => {
 
     const totalCount = await Order.count()
     const orders = await Order.findMany({
+        where: {status: {not: "CANCELLED"}},
         skip: skipValues,
         take: intLimit,
         include: {
@@ -167,7 +168,7 @@ export const fetchOrders = asyncHandler(async (req: Request, res: Response) => {
 export const getOrder = asyncHandler(async (req: Request, res: Response) => {
     const {id} = req.params;
     const order = await Order.findUnique({
-        where: {id: Number(id)},
+        where: {id: parseInt(id as string)},
         include: {
             user: {select: {email: true}},
             items: {
@@ -202,6 +203,8 @@ export const searchOrder = asyncHandler(async (req: Request, res: Response) => {
     const maxPrice = req.query.maxPrice as string
 
     const data = await Order.findMany({
+        where: {status: {not: "CANCELLED"}},
+
         // where: {
         //     AND: [
         //         { shippingAddress: { contains: shippingAddress, mode: 'insensitive' } },
@@ -245,8 +248,11 @@ export const updateOrder = asyncHandler(async (req: Request, res: Response) => {
 export const deleteOrder = asyncHandler(async (req: Request, res: Response) => {
     const {id} = req.params;
 
-    const deleteOrder = await Order.delete({
-        where: {id: Number(id)}
+    const deleteOrder = await Order.update({
+        where: {id: Number(id)},
+        data: {
+            status: "CANCELLED",
+        }
     });
 
     if (!deleteOrder) {
