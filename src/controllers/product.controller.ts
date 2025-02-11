@@ -169,23 +169,22 @@ export const searchProduct = asyncHandler(async (req: Request, res: Response) =>
 // @ desc --- Get Multiple Products
 // @ route  --GET-- [base_api]/products
 export const fetchProducts = asyncHandler(async (req: Request, res: Response) => {
-    const { page } = req.query
+    const { page, limit } = req.query
 
     const pageNumber = typeof page === "string" ? Number(page) - 1 : 0
-    const limit = 12 // items per page
-    const skipValues = pageNumber * limit
+    const intLimit = parseInt(limit as string) || 10 // items per page
+    const skipValues = pageNumber * intLimit
 
     const totalCount = await Product.count()
     const products = await Product.findMany({
         skip: skipValues,
-        take: limit,
+        take: intLimit,
         orderBy: [{ id: 'asc' }],
         cacheStrategy: {
             ttl: 60 * 5, // 5 min
             swr: 60 * 10 // 10min
         }
     });
-
 
     res.status(200).json({
         page: pageNumber + 1,
