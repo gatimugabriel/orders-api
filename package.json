@@ -6,7 +6,9 @@
     "queries": "ts-node ./src/queries.ts",
     "caching": "ts-node ./src/caching.ts",
     "realtime": "ts-node ./src/realtime.ts",
-    "start" :"ts-node ./src/app.ts",
+    "start": "ts-node ./src/app.ts",
+    "dev": "nodemon --watch 'src/**/*' --exec 'ts-node' src/app.ts",
+    "dev2": "ts-node-dev --respawn --transpile-only src/app.ts",
     "seed": "ts-node ./prisma/dummyData/seeder.ts"
   },
   "dependencies": {
@@ -38,6 +40,7 @@
     "@types/nodemailer": "^6.4.17",
     "prisma": "6.3.1",
     "ts-node": "10.9.2",
+    "ts-node-dev": "^2.0.0",
     "typescript": "5.7.3"
   }
 }
