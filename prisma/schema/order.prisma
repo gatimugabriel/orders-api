@@ -6,7 +6,7 @@ model Order {
   totalItems      Int
   totalPrice      Float
   status          OrderStatus @default(PENDING)
-  shippingAddress String?
+  shippingAddress String
   deliveryMethod  String
 
   userID    Int
