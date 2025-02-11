@@ -1,9 +1,9 @@
-import { Request, Response } from "express";
+import {Request, Response} from "express";
 import asyncHandler from "express-async-handler";
-import { PrismaClient } from "@prisma/client";
-import { withAccelerate } from "@prisma/extension-accelerate";
-import { cloudinaryUpload } from "../utils/media.util";
-import { UploadedFile } from "express-fileupload";
+import {PrismaClient} from "@prisma/client";
+import {withAccelerate} from "@prisma/extension-accelerate";
+import {cloudinaryUpload} from "../utils/media.util";
+import {UploadedFile} from "express-fileupload";
 
 const prisma = new PrismaClient().$extends(withAccelerate());
 const Product = prisma.product
@@ -25,48 +25,80 @@ export const createProduct = asyncHandler(async (req: Request, res: Response) =>
         featured
     } = req.body
 
-    const categories = JSON.parse(category);
-    const priceFloat = parseFloat(price);
-    const stockInt = parseInt(stock);
-    const discountInt = parseInt(discountRate);
-    const isFeatured = featured === 'true';
-    const weightInt = parseInt(weight);
+    // category field is expected as comma-separated string (because this endpoint gets FormData (for support of attaching files)
+    let categories: string[]
+    try {
+        // Try to parse as JSON first (in case it's sent as JSON)
+        categories = typeof category === 'string' ?
+            (category.includes('[') ? JSON.parse(category) : category.split(',').map(c => c.trim())) :
+            category
+    } catch (error) {
+        // If parsing fails, treat it as a single category
+        categories = [category]
+    }
 
-    // @ts-ignore
-    const UploadedFiles = Object.values(req.files as UploadedFile | UploadedFile[]);
-    const imageArray: UploadedFile[] = Array.isArray(UploadedFiles) ? UploadedFiles : [UploadedFiles];
+    const priceFloat = parseFloat(price) || 0
+    const stockInt = parseInt(stock) || 0
+    const discountInt = parseInt(discountRate) || 0
+    const weightInt = parseInt(weight) || 0
+    const isFeatured = featured === 'true' || featured === true
 
-    //  upload images
-    const uploadImagesResult = await cloudinaryUpload(imageArray, name)
-    const imageUrls = uploadImagesResult.map(image => image.secure_url)
+    // Handle file uploads
+    let imageUrls: string[] = []
+    if (req.files) {
+        // Handle both single and multiple file uploads
+        // @ts-ignore
+        const uploadedFiles = Object.values(req.files as UploadedFile | UploadedFile[])
+        const imageArray: UploadedFile[] = Array.isArray(uploadedFiles) ? uploadedFiles : [uploadedFiles]
+
+        // Upload storage
+        if (imageArray.length > 0) {
+            const uploadImagesResult = await cloudinaryUpload(imageArray, name)
+            imageUrls = uploadImagesResult.map(image => image.secure_url)
+        }
+    }
 
     const data = await Product.create({
         data: {
             name,
-            description,
+            description: description || '',
             images: imageUrls,
             category: categories,
-            brand,
+            brand: brand || '',
             weight: weightInt,
-            dimensions,
+            dimensions: dimensions || '',
             price: priceFloat,
             discountRate: discountInt,
             stock: stockInt,
-            slug,
+            slug: slug || name.toLowerCase().replace(/\s+/g, '-'),
             featured: isFeatured
         }
     })
 
     res.status(201).json({
+        success: true,
         message: "Product added successfully",
         data
-    });
+    })
+
 })
 
 // @ desc --- Update Product
 // @ route  --PUT-- [base_api]/products/:id
 export const updateProduct = asyncHandler(async (req: Request, res: Response) => {
-    const { id } = req.params;
+    const {id} = req.params
+    const existingProduct = await Product.findUnique({
+        where: {id: Number(id)}
+    })
+
+    if (!existingProduct) {
+        res.status(404).json({
+            success: false,
+            message: "Product not found"
+        })
+        return
+    }
+
     const {
         name,
         description,
@@ -81,52 +113,73 @@ export const updateProduct = asyncHandler(async (req: Request, res: Response) =>
         featured
     } = req.body
 
-    const categories = JSON.parse(category);
-    const priceFloat = parseFloat(price);
-    const stockInt = parseInt(stock);
-    const discountInt = parseInt(discountRate);
-    const isFeatured = featured === 'true';
+    const updateData: any = {}
 
-    const UploadedFiles = Object.values(req.files as unknown as UploadedFile | UploadedFile[]);
-    const imageArray: UploadedFile[] = Array.isArray(UploadedFiles) ? UploadedFiles : [UploadedFiles];
-
-    const uploadImagesResult = await cloudinaryUpload(imageArray, name)
-    const imageUrls = uploadImagesResult.map(image => image.secure_url)
-
-    const data = await Product.update({
-        where: { id: Number(id) },
-        data: {
-            name,
-            description,
-            images: imageUrls,
-            category: categories,
-            brand,
-            weight,
-            dimensions,
-            price: priceFloat,
-            discountRate: discountInt,
-            stock: stockInt,
-            slug,
-            featured: isFeatured
+    if (category) {
+        try {
+            updateData.category = typeof category === 'string' ?
+                (category.includes('[') ? JSON.parse(category) : category.split(',').map(c => c.trim())) :
+                category
+        } catch (error) {
+            updateData.category = [category]
         }
-    });
-    if (!data) {
-        res.status(400);
-        throw new Error("Product failed to update");
     }
 
+    // Handle numeric fields if provided
+    if (price) updateData.price = parseFloat(price) || existingProduct.price
+    if (stock) updateData.stock = parseInt(stock) || existingProduct.stock
+    if (discountRate) updateData.discountRate = parseInt(discountRate) || existingProduct.discountRate
+    if (weight) updateData.weight = parseInt(weight) || existingProduct.weight
+
+    if (featured !== undefined) {
+        updateData.featured = featured === 'true' || featured === true
+    }
+
+    if (name) updateData.name = name
+    if (description) updateData.description = description
+    if (brand) updateData.brand = brand
+    if (dimensions) updateData.dimensions = dimensions
+    if (slug) updateData.slug = slug
+
+    // Handle image uploads if present
+    if (req.files) {
+        try {
+            // @ts-ignore
+            const uploadedFiles = Object.values(req.files as UploadedFile | UploadedFile[])
+            const imageArray: UploadedFile[] = Array.isArray(uploadedFiles) ? uploadedFiles : [uploadedFiles]
+
+            if (imageArray.length > 0) {
+                const uploadImagesResult = await cloudinaryUpload(imageArray, name || existingProduct.name)
+                updateData.images = uploadImagesResult.map(image => image.secure_url)
+            }
+        } catch (error) {
+            res.status(400).json({
+                success: false,
+                message: "Failed to upload images",
+                error: error instanceof Error ? error.message : 'Unknown error occurred'
+            })
+            return
+        }
+    }
+
+    const data = await Product.update({
+        where: {id: Number(id)},
+        data: updateData
+    })
+
     res.status(200).json({
+        success: true,
         message: "Product updated successfully",
         data
-    });
-});
+    })
+})
 
 // @ desc --- Get Single Product
 // @ route  --GET-- [base_api]/products/:id
 export const getProduct = asyncHandler(async (req: Request, res: Response) => {
-    const { id } = req.params;
+    const {id} = req.params;
     const data = await Product.findUnique({
-        where: { id: Number(id) },
+        where: {id: Number(id)},
         cacheStrategy: {
             ttl: 3600, // 1 hour
             swr: 7200 // 2 hours
@@ -140,8 +193,7 @@ export const getProduct = asyncHandler(async (req: Request, res: Response) => {
         return
     }
 
-    // console.log(product)
-    res.status(200).json({ data });
+    res.status(200).json({data});
 });
 
 // @ desc --- Search for Product(s)
@@ -157,19 +209,19 @@ export const searchProduct = asyncHandler(async (req: Request, res: Response) =>
     const data = await Product.findMany({
         where: {
             OR: [
-                { name: { contains: searchTerm, mode: 'insensitive' } },
+                {name: {contains: searchTerm, mode: 'insensitive'}},
             ]
         },
         // take: 25
     })
 
-    res.status(200).json({ data })
+    res.status(200).json({data})
 })
 
 // @ desc --- Get Multiple Products
 // @ route  --GET-- [base_api]/products
 export const fetchProducts = asyncHandler(async (req: Request, res: Response) => {
-    const { page, limit } = req.query
+    const {page, limit} = req.query
 
     const pageNumber = typeof page === "string" ? Number(page) - 1 : 0
     const intLimit = parseInt(limit as string) || 10 // items per page
@@ -179,7 +231,7 @@ export const fetchProducts = asyncHandler(async (req: Request, res: Response) =>
     const products = await Product.findMany({
         skip: skipValues,
         take: intLimit,
-        orderBy: [{ id: 'asc' }],
+        orderBy: [{id: 'asc'}],
         cacheStrategy: {
             ttl: 60 * 5, // 5 min
             swr: 60 * 10 // 10min
@@ -197,16 +249,16 @@ export const fetchProducts = asyncHandler(async (req: Request, res: Response) =>
 // @ desc --- Get Featured Products
 // @ route  --GET-- [base_api]/products/featured
 export const fetchFeaturedProducts = asyncHandler(async (req: Request, res: Response) => {
-    const { page } = req.query
+    const {page} = req.query
     const pageNumber = typeof page === "string" ? Number(page) - 1 : 0
     const limit = 6 // items per page
     const skipValues = pageNumber * limit
 
     const data = await prisma.product.findMany({
-        where: { featured: true },
+        where: {featured: true},
         skip: skipValues,
         take: limit,
-        orderBy: [{ id: 'asc' }],
+        orderBy: [{id: 'asc'}],
         cacheStrategy: {
             ttl: 60 * 5, // 5 min
             swr: 60 * 10 // 10min
@@ -223,13 +275,13 @@ export const fetchFeaturedProducts = asyncHandler(async (req: Request, res: Resp
 // @ desc --- Delete Product
 // @ route  --DELETE-- [base_api]/products/:id
 export const deleteProduct = asyncHandler(async (req: Request, res: Response) => {
-    const { id } = req.params;
+    const {id} = req.params;
 
-    const deleteProduct = await Product.delete({ where: { id: Number(id) } });
+    const deleteProduct = await Product.delete({where: {id: Number(id)}});
     if (!deleteProduct) {
         res.status(400);
         throw new Error("Failed to delete product. Try again later");
     }
 
-    res.status(200).json({ message: "Product deleted successfully" });
+    res.status(200).json({message: "Product deleted successfully"});
 })
