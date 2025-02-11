@@ -31,3 +31,18 @@ export interface SearchOrderQuery {
     limit?: string
 }
 
+//products
+export interface SearchProductQuery {
+    searchTerm?: string
+    category?: string
+    minPrice?: string
+    maxPrice?: string
+    inStock?: string
+    sortBy?: 'price_asc' | 'price_desc' | 'name_asc' | 'name_desc' | 'newest'
+    page?: string
+    limit?: string
+    minRating?: string
+    maxRating?: string
+    brand?: string
+}
+

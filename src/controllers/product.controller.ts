@@ -1,9 +1,10 @@
 import {Request, Response} from "express";
 import asyncHandler from "express-async-handler";
-import {PrismaClient} from "@prisma/client";
+import {Prisma, PrismaClient} from "@prisma/client";
 import {withAccelerate} from "@prisma/extension-accelerate";
 import {cloudinaryUpload} from "../utils/media.util";
 import {UploadedFile} from "express-fileupload";
+import {SearchProductQuery} from "../@types/types";
 
 const prisma = new PrismaClient().$extends(withAccelerate());
 const Product = prisma.product
@@ -196,26 +197,133 @@ export const getProduct = asyncHandler(async (req: Request, res: Response) => {
     res.status(200).json({data});
 });
 
-// @ desc --- Search for Product(s)
+// @ desc --- Search for Product(s) with pagination and filtering
 // @ route  --GET-- [base_api]/products/search/s
 export const searchProduct = asyncHandler(async (req: Request, res: Response) => {
-    const searchTerm = req.query.searchTerm as string
-    const category = req.query.category as string
-    const minPrice = req.query.minPrice as string
-    const maxPrice = req.query.maxPrice as string
+    const {
+        searchTerm,
+        category,
+        minPrice,
+        maxPrice,
+        sortBy = 'newest',
+        page = '1',
+        limit = '12',
+        brand
+    } = req.query as SearchProductQuery
 
-    // {category: {equals: category}}            ]
+    const pageNum = Math.max(1, parseInt(page))
+    const limitNum = Math.max(1, Math.min(50, parseInt(limit)))
+    const skip = (pageNum - 1) * limitNum
 
-    const data = await Product.findMany({
-        where: {
+    // Build where clause dynamically
+    const whereClause: Prisma.ProductWhereInput = {
+        AND: []
+    }
+
+    // Search term filter (search in name and description)
+    if (searchTerm) {
+        // @ts-ignore
+        whereClause.AND.push({
             OR: [
-                {name: {contains: searchTerm, mode: 'insensitive'}},
+                { name: { contains: searchTerm, mode: 'insensitive' } },
+                { description: { contains: searchTerm, mode: 'insensitive' } }
             ]
-        },
-        // take: 25
+        })
+    }
+
+    // *TODO : Fix category check (brings bug if included)
+    // if (category) {
+    //     // @ts-ignore
+    //     whereClause.AND.push({
+    //         category: { equals: category }
+    //     })
+    // }
+
+    if (minPrice || maxPrice) {
+       //@ts-ignore
+        whereClause.AND.push({
+            price: {
+                gte: minPrice ? parseFloat(minPrice) : undefined,
+                lte: maxPrice ? parseFloat(maxPrice) : undefined
+            }
+        })
+    }
+
+    if (brand) {
+       //@ts-ignore
+        whereClause.AND.push({
+            brand: { equals: brand, mode: 'insensitive' }
+        })
+    }
+
+    // Determine sort order
+    const orderBy: Prisma.ProductOrderByWithRelationInput = (() => {
+        switch (sortBy) {
+            case 'price_asc':
+                return { price: 'asc' }
+            case 'price_desc':
+                return { price: 'desc' }
+            case 'name_asc':
+                return { name: 'asc' }
+            case 'name_desc':
+                return { name: 'desc' }
+            case 'newest':
+            default:
+                return { createdAt: 'desc' }
+        }
+    })()
+
+    // Execute
+    const [data, total] = await Promise.all([
+        Product.findMany({
+            where: whereClause,
+            skip,
+            take: limitNum,
+            orderBy
+        }),
+        Product.count({ where: whereClause })
+    ])
+
+    // Calculate aggregations
+    const priceStats = await Product.aggregate({
+        where: whereClause,
+        _min: { price: true },
+        _max: { price: true },
+        _avg: { price: true }
     })
 
-    res.status(200).json({data})
+    // unique brands filtering
+    const uniqueBrands = await Product.findMany({
+        where: whereClause,
+        select: { brand: true },
+        distinct: ['brand']
+    })
+
+    // pagination metadata
+    const totalPages = Math.ceil(total / limitNum)
+    const hasNext = pageNum < totalPages
+    const hasPrev = pageNum > 1
+
+    res.status(200).json({
+        success: true,
+        data,
+        pagination: {
+            page: pageNum,
+            limit: limitNum,
+            total,
+            totalPages,
+            hasNext,
+            hasPrev
+        },
+        stats: {
+            priceRange: {
+                min: priceStats._min.price,
+                max: priceStats._max.price,
+                avg: priceStats._avg.price
+            },
+            availableBrands: uniqueBrands.map(b => b.brand)
+        }
+    })
 })
 
 // @ desc --- Get Multiple Products
