@@ -8,6 +8,7 @@ import { PrismaClient } from "@prisma/client";
 
 import routes from "./routes";
 import { notFound, errorHandler } from "./middleware/errors/global.middleware";
+import { setupSwagger } from "./config/swagger";
 
 dotenv.config()
 export const app: Express = express();
@@ -23,7 +24,7 @@ async function main() {
     const allowedOrigins = [
         process.env["CLIENT_ORIGIN"],
         process.env["ADMIN_ORIGIN"],
-        process.env["API_URL"],
+        process.env["SERVER_URL"],
     ].filter(Boolean) as string[];
 
     const corsOptions = {
@@ -44,12 +45,20 @@ async function main() {
     app.use(morgan('dev'));
 
     // --- Routes ---//
+    app.get("/", (_req: Request, res: Response) => {
+        res.send(`Welcome to Orders API. Visit ${process.env["SERVER_URL"]}/api-docs for more info`);
+    });
+    // Setup Swagger documentation
+    setupSwagger(app);
+
     const base_api = "/api/v1";
     routes(app, base_api)
 
     // -- global errors middleware
     app.use(notFound)
     app.use(errorHandler)
+
+
 
     app.listen(PORT, async () => {
         console.log(
