@@ -1,5 +1,6 @@
 import {mediaConfig} from "../config/media.config";
 import {UploadedFile} from "express-fileupload";
+import {queueTempFileCleanup} from "../workers/files.worker";
 
 interface CloudinaryResult {
     secure_url: string;
@@ -24,6 +25,9 @@ export const cloudinaryUpload = async (images: UploadedFile[], productName: stri
                         reject(new Error(`Error uploading image, ${error.message}`));
                     } else {
                         resolve(result as CloudinaryResult);
+                        
+                        // Queue cleanup of temp files
+                        queueTempFileCleanup([image.tempFilePath]);
                     }
                 }
             )
