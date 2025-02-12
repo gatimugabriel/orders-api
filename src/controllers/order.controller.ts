@@ -1,10 +1,11 @@
 import {Request, Response} from "express";
+import {CacheService} from "../services/cache.service";
 import {ExtendedRequest} from "../@types/express";
 import asyncHandler from "express-async-handler";
-import {PrismaClient, Prisma} from "@prisma/client";
-import { OrderStatus } from '@prisma/client'
+import {OrderStatus, Prisma, PrismaClient} from "@prisma/client";
+import {queueOrderConfirmationEmail} from "../workers/email.worker";
 import {withAccelerate} from "@prisma/extension-accelerate";
-import { SearchOrderQuery } from "../@types/types";
+import {SearchOrderQuery} from "../@types/types";
 
 const prisma = new PrismaClient({
     transactionOptions: {
@@ -13,6 +14,7 @@ const prisma = new PrismaClient({
     }
 }).$extends(withAccelerate());
 const Order = prisma.order
+
 
 // @ desc --- Create Order
 // @ route  --POST-- [base_api]/orders
@@ -100,7 +102,16 @@ export const createOrder = asyncHandler(async (req: ExtendedRequest, res: Respon
                     ...orderData,
                     payment: {connect: {id: payment.id}}  // Connect the order to payment
                 },
+                include: {
+                    user: true
+                }
             });
+
+            // Cache the order
+            await CacheService.cacheOrder(order.id, order);
+
+            // Queue order confirmation email
+            await queueOrderConfirmationEmail(order);
 
             return {order, payment};
         });
@@ -116,19 +127,64 @@ export const createOrder = asyncHandler(async (req: ExtendedRequest, res: Respon
     }
 });
 
-// @ desc --- Get Multiple Orders
-// @ route  --GET-- [base_api]/orders
-export const fetchOrders = asyncHandler(async (req: Request, res: Response) => {
-    let {page, limit} = req.query
-    const pageNumber = parseInt(page as string) - 1 || 0
-    const intLimit = parseInt(limit as string) || 10
-    const skipValues = pageNumber * intLimit
+// @ desc --- Get Single Order by ID
+// @ route  --GET-- [base_api]/orders/:id
+export const getOrderById = asyncHandler(async (req: Request, res: Response) => {
+    const orderId = parseInt(req.params.id);
 
-    const totalCount = await Order.count()
+    // Try to get from cache first
+    const cachedOrder = await CacheService.getCachedOrder(orderId);
+    if (cachedOrder) {
+        res.json({
+            success: true,
+            data: cachedOrder,
+            source: "cache"
+        })
+        return
+    }
+
+    // If not in cache, get from database
+    const order = await Order.findUnique({
+        where: {id: orderId},
+        include: {
+            user: {select: {email: true}},
+            items: {
+                include: {
+                    product: true
+                }
+            },
+            // payment: true,
+        },
+        cacheStrategy: {
+            ttl: 3600, // 1 hour
+            swr: 7200 // 2 hours
+        }
+    });
+    if (!order) {
+        res.status(404);
+        throw new Error("Order not found or may have been deleted");
+    }
+
+    // Cache the order for future requests
+    await CacheService.cacheOrder(orderId, order);
+
+    res.json({
+        success: true,
+        data: order,
+        source: "database"
+    });
+});
+
+// @ desc --- Get Many Orders
+// @ route  --GET-- [base_api]/orders
+export const getAllOrders = asyncHandler(async (req: Request, res: Response) => {
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 10;
+    const skip = (page - 1) * limit;
+
     const orders = await Order.findMany({
-        where: {status: {not: "CANCELLED"}},
-        skip: skipValues,
-        take: intLimit,
+        skip,
+        take: limit,
         include: {
             items: {
                 include: {
@@ -147,47 +203,25 @@ export const fetchOrders = asyncHandler(async (req: Request, res: Response) => {
             user: {select: {email: true}},
             // payment: true
         },
+        orderBy: {
+            createdAt: 'desc'
+        },
         cacheStrategy: {
             ttl: 60, // 1 min
             swr: 120 // 2 min
         }
-    });
-    res.status(200).json({
-        page: pageNumber + 1,
-        count: orders.length,
-        totalCount,
-        data: orders
-    });
-});
 
-// @ desc --- Get Single Order
-// @ route  --GET-- [base_api]/orders/get/:id
-export const getOrder = asyncHandler(async (req: Request, res: Response) => {
-    const {id} = req.params;
-    const order = await Order.findUnique({
-        where: {id: parseInt(id as string)},
-        include: {
-            user: {select: {email: true}},
-            items: {
-                include: {
-                    product: true
-                }
-            },
-            // payment: true,
-        },
-        cacheStrategy: {
-            ttl: 3600, // 1 hour
-            swr: 7200 // 2 hours
-        }
     });
-    if (!order) {
-        res.status(404).json({
-            message: "Order not found or may have been deleted"
-        })
-        return
-    }
-    res.status(200).json({
-        data: order
+    const total = await Order.count();
+
+    res.json({
+        pagination: {
+            page,
+            limit,
+            total,
+            pages: Math.ceil(total / limit)
+        },
+        data: orders
     });
 });
 
@@ -218,26 +252,26 @@ export const searchOrder = asyncHandler(async (req: Request, res: Response) => {
     }
 
     // @ts-ignore
-    whereClause.AND.push({ status: { not: 'CANCELLED' } })
+    whereClause.AND.push({status: {not: 'CANCELLED'}})
 
     // optional filters
     if (shippingAddress) {
         // @ts-ignore
         whereClause.AND.push({
-            shippingAddress: { contains: shippingAddress, mode: 'insensitive' }
+            shippingAddress: {contains: shippingAddress, mode: 'insensitive'}
         })
     }
 
     if (deliveryMethod) {
         // @ts-ignore
         whereClause.AND.push({
-            deliveryMethod: { contains: deliveryMethod, mode: 'insensitive' }
+            deliveryMethod: {contains: deliveryMethod, mode: 'insensitive'}
         })
     }
 
     if (status && Object.values(OrderStatus).includes(status as OrderStatus)) {
         // @ts-ignore
-        whereClause.AND.push({ status })
+        whereClause.AND.push({status})
     }
 
     if (minPrice || maxPrice) {
@@ -315,7 +349,7 @@ export const searchOrder = asyncHandler(async (req: Request, res: Response) => {
                 createdAt: 'desc'
             }
         }),
-        Order.count({ where: whereClause })
+        Order.count({where: whereClause})
     ])
 
     // pagination metadata

@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { fetchOrders, getOrder, searchOrder, createOrder, updateOrder, deleteOrder } from '../controllers/order.controller';
+import { searchOrder, createOrder, updateOrder, deleteOrder, getAllOrders, getOrderById } from '../controllers/order.controller';
 import { authenticate } from "../middleware/auth/auth.middleware";
 import { requireBody, validate } from "../middleware/validation/base.middleware";
 import { validateOrderEntry } from "../middleware/validation/order.middleware";
@@ -18,10 +18,10 @@ router.post('/',
     createOrder
 )
 
-router.get('/', fetchOrders);
+router.get('/', getAllOrders);
 router.get('/search/s', searchOrder);
 router.route('/:id')
-    .get(getOrder) 
+    .get(getOrderById) 
     .put([requireBody], updateOrder) 
     .delete(deleteOrder); 
 
