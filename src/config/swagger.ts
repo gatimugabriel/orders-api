@@ -2,6 +2,10 @@ import swaggerUi from 'swagger-ui-express';
 import swaggerJsdoc from 'swagger-jsdoc';
 import { Express } from 'express';
 
+//switch the server url and description based on .env variables
+const API_URL = process.env["API_URL"]
+const description = process.env["ENVIRONMENT"] === "production" ? "Live Production Server" : "Local Developement Server"
+
 const options = {
   definition: {
     openapi: '3.0.0',
@@ -12,12 +16,24 @@ const options = {
     },
     servers: [
       {
-        url: 'http://localhost:8080/api/v1',
-        description: 'Local development server',
+        url: API_URL,
+        description,
       },
     ],
+    components: {
+      securitySchemes: {
+        bearerAuth: {
+          type: 'http',
+          scheme: 'bearer',
+          bearerFormat: 'JWT'
+        }
+      }
+    },
+    security: [{
+      bearerAuth: []
+    }]
   },
-  apis: ['./src/controllers/*.ts', './src/routes/*.ts'],
+  apis: ['./docs/swagger/*.ts'],
 };
 
 const specs = swaggerJsdoc(options);

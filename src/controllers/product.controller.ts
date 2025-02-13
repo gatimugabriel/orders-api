@@ -10,39 +10,7 @@ import { ProductCacheService } from "../services/cache/product-cache.service";
 const prisma = new PrismaClient().$extends(withAccelerate());
 const Product = prisma.product
 
-/**
- * @swagger
- * /products:
- *   post:
- *     summary: Create a new product
- *     tags: [Products]
- *     requestBody:
- *       required: true
- *       content:
- *         multipart/form-data:
- *           schema:
- *             type: object
- *             properties:
- *               name:
- *                 type: string
- *               description:
- *                 type: string
- *               category:
- *                 type: string
- *               brand:
- *                 type: string
- *               price:
- *                 type: number
- *               stock:
- *                 type: integer
- *               featured:
- *                 type: boolean
- *     responses:
- *       201:
- *         description: Product created successfully
- *       400:
- *         description: Invalid input data
- */
+
 export const createProduct = asyncHandler(async (req: Request, res: Response) => {
     const {
         name,
@@ -207,25 +175,7 @@ export const updateProduct = asyncHandler(async (req: Request, res: Response) =>
     })
 })
 
-/**
- * @swagger
- * /products/{id}:
- *   get:
- *     summary: Get a single product by ID
- *     tags: [Products]
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: integer
- *         description: Product ID
- *     responses:
- *       200:
- *         description: Product details retrieved successfully
- *       404:
- *         description: Product not found
- */
+// @ desc --- Get Single Product by ID
 export const getProduct = asyncHandler(async (req: Request, res: Response) => {
     const { id } = req.params;
     const numericId = Number(id);
@@ -236,7 +186,7 @@ export const getProduct = asyncHandler(async (req: Request, res: Response) => {
         res.json({
             success: true,
             data: cachedProduct,
-            source :"cache"
+            source: "cache"
         });
         return
     }
@@ -251,7 +201,7 @@ export const getProduct = asyncHandler(async (req: Request, res: Response) => {
     });
 
     if (!data) {
-         res.status(404).json({
+        res.status(404).json({
             success: false,
             message: "Product not found"
         });
@@ -264,7 +214,7 @@ export const getProduct = asyncHandler(async (req: Request, res: Response) => {
     res.status(200).json({
         success: true,
         data,
-        source:"database"
+        source: "database"
     });
 });
 
@@ -400,46 +350,9 @@ export const searchProduct = asyncHandler(async (req: Request, res: Response) =>
     })
 })
 
-/**
- * @swagger
- * /products:
- *   get:
- *     summary: Get all products with pagination and filtering
- *     tags: [Products]
- *     parameters:
- *       - in: query
- *         name: page
- *         schema:
- *           type: integer
- *           minimum: 1
- *           default: 1
- *         description: Page number for pagination
- *       - in: query
- *         name: limit
- *         schema:
- *           type: integer
- *           minimum: 1
- *           maximum: 100
- *           default: 10
- *         description: Number of items per page
- *       - in: query
- *         name: sortBy
- *         schema:
- *           type: string
- *           enum: [newest, price_asc, price_desc, name_asc, name_desc]
- *         description: Sort products by specific criteria
- *       - in: query
- *         name: featured
- *         schema:
- *           type: boolean
- *         description: Filter by featured products
- *     responses:
- *       200:
- *         description: List of products retrieved successfully
- *       400:
- *         description: Invalid parameters
- */
-export const fetchProducts = asyncHandler(async (req: Request, res: Response) => {
+// @ desc --- Get many products with pagination
+// @ route --GET-- [base_api]/products 
+export const getAllProducts = asyncHandler(async (req: Request, res: Response) => {
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 10;
     const skip = (page - 1) * limit
@@ -457,7 +370,7 @@ export const fetchProducts = asyncHandler(async (req: Request, res: Response) =>
 
     const products = await Product.findMany({
         skip,
-        take:limit,
+        take: limit,
         orderBy: [{ id: 'asc' }],
         cacheStrategy: {
             ttl: 60 * 5, // 5 min
@@ -475,7 +388,7 @@ export const fetchProducts = asyncHandler(async (req: Request, res: Response) =>
             pages: Math.ceil(total / limit)
         },
         data: products,
-        source :"database"
+        source: "database"
     })
 });
 
@@ -504,7 +417,7 @@ export const fetchFeaturedProducts = asyncHandler(async (req: Request, res: Resp
             count: data.length,
         },
         data,
-        source :"database"
+        source: "database"
     })
 });
 

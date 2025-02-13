@@ -175,42 +175,8 @@ export const getOrderById = asyncHandler(async (req: Request, res: Response) => 
     });
 });
 
-/**
- * @swagger
- * /orders:
- *   get:
- *     summary: Get all orders with pagination
- *     tags: [Orders]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: query
- *         name: page
- *         schema:
- *           type: integer
- *           minimum: 1
- *           default: 1
- *         description: Page number for pagination
- *       - in: query
- *         name: limit
- *         schema:
- *           type: integer
- *           minimum: 1
- *           maximum: 100
- *           default: 10
- *         description: Number of items per page
- *       - in: query
- *         name: status
- *         schema:
- *           type: string
- *           enum: [PENDING, PROCESSING, COMPLETED, CANCELLED]
- *         description: Filter orders by status
- *     responses:
- *       200:
- *         description: List of orders retrieved successfully
- *       401:
- *         description: Unauthorized access
- */
+// @ desc --- Get Many Orders with Pagination
+// @ route  --GET-- [base_api]/orders/
 export const getAllOrders = asyncHandler(async (req: Request, res: Response) => {
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 10;
