@@ -85,6 +85,7 @@ export const signIn = asyncHandler(async (req: ExtendedRequest, res: Response, n
 
     const isPasswordValid = await bcrypt.compare(password, (user.password as string))
     if (!isPasswordValid) {
+        res.status(401)
         throw new Error("Invalid credentials");
     }
 

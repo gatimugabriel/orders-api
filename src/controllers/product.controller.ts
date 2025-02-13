@@ -1,16 +1,16 @@
-import {Request, Response} from "express";
+import { Request, Response } from "express";
 import asyncHandler from "express-async-handler";
-import {Prisma, PrismaClient} from "@prisma/client";
-import {withAccelerate} from "@prisma/extension-accelerate";
-import {cloudinaryUpload} from "../utils/media.util";
-import {UploadedFile} from "express-fileupload";
-import {SearchProductQuery} from "../@types/types";
+import { Prisma, PrismaClient } from "@prisma/client";
+import { withAccelerate } from "@prisma/extension-accelerate";
+import { cloudinaryUpload } from "../utils/media.util";
+import { UploadedFile } from "express-fileupload";
+import { SearchProductQuery } from "../@types/types";
+import { ProductCacheService } from "../services/cache/product-cache.service";
 
 const prisma = new PrismaClient().$extends(withAccelerate());
 const Product = prisma.product
 
-// @ desc --- Create new product
-// @ route  --POST-- [base_api]/products
+
 export const createProduct = asyncHandler(async (req: Request, res: Response) => {
     const {
         name,
@@ -87,9 +87,9 @@ export const createProduct = asyncHandler(async (req: Request, res: Response) =>
 // @ desc --- Update Product
 // @ route  --PUT-- [base_api]/products/:id
 export const updateProduct = asyncHandler(async (req: Request, res: Response) => {
-    const {id} = req.params
+    const { id } = req.params
     const existingProduct = await Product.findUnique({
-        where: {id: Number(id)}
+        where: { id: Number(id) }
     })
 
     if (!existingProduct) {
@@ -164,7 +164,7 @@ export const updateProduct = asyncHandler(async (req: Request, res: Response) =>
     }
 
     const data = await Product.update({
-        where: {id: Number(id)},
+        where: { id: Number(id) },
         data: updateData
     })
 
@@ -175,12 +175,25 @@ export const updateProduct = asyncHandler(async (req: Request, res: Response) =>
     })
 })
 
-// @ desc --- Get Single Product
-// @ route  --GET-- [base_api]/products/:id
+// @ desc --- Get Single Product by ID
 export const getProduct = asyncHandler(async (req: Request, res: Response) => {
-    const {id} = req.params;
+    const { id } = req.params;
+    const numericId = Number(id);
+
+    // Try to get from cache first
+    const cachedProduct = await ProductCacheService.getCachedProduct(numericId);
+    if (cachedProduct) {
+        res.json({
+            success: true,
+            data: cachedProduct,
+            source: "cache"
+        });
+        return
+    }
+
+    // If not in cache, get from database
     const data = await Product.findUnique({
-        where: {id: Number(id)},
+        where: { id: numericId },
         cacheStrategy: {
             ttl: 3600, // 1 hour
             swr: 7200 // 2 hours
@@ -189,12 +202,20 @@ export const getProduct = asyncHandler(async (req: Request, res: Response) => {
 
     if (!data) {
         res.status(404).json({
-            message: "Product not found or may have been deleted"
-        })
+            success: false,
+            message: "Product not found"
+        });
         return
     }
 
-    res.status(200).json({data});
+    // Cache the product for future requests
+    await ProductCacheService.cacheProduct(numericId, data);
+
+    res.status(200).json({
+        success: true,
+        data,
+        source: "database"
+    });
 });
 
 // @ desc --- Search for Product(s) with pagination and filtering
@@ -240,7 +261,7 @@ export const searchProduct = asyncHandler(async (req: Request, res: Response) =>
     // }
 
     if (minPrice || maxPrice) {
-       //@ts-ignore
+        //@ts-ignore
         whereClause.AND.push({
             price: {
                 gte: minPrice ? parseFloat(minPrice) : undefined,
@@ -250,7 +271,7 @@ export const searchProduct = asyncHandler(async (req: Request, res: Response) =>
     }
 
     if (brand) {
-       //@ts-ignore
+        //@ts-ignore
         whereClause.AND.push({
             brand: { equals: brand, mode: 'insensitive' }
         })
@@ -304,6 +325,9 @@ export const searchProduct = asyncHandler(async (req: Request, res: Response) =>
     const hasNext = pageNum < totalPages
     const hasPrev = pageNum > 1
 
+    // Cache the search results
+    await ProductCacheService.cacheAllProducts(pageNum, data);
+
     res.status(200).json({
         success: true,
         data,
@@ -326,70 +350,87 @@ export const searchProduct = asyncHandler(async (req: Request, res: Response) =>
     })
 })
 
-// @ desc --- Get Multiple Products
-// @ route  --GET-- [base_api]/products
-export const fetchProducts = asyncHandler(async (req: Request, res: Response) => {
-    const {page, limit} = req.query
+// @ desc --- Get many products with pagination
+// @ route --GET-- [base_api]/products 
+export const getAllProducts = asyncHandler(async (req: Request, res: Response) => {
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 10;
+    const skip = (page - 1) * limit
 
-    const pageNumber = typeof page === "string" ? Number(page) - 1 : 0
-    const intLimit = parseInt(limit as string) || 10 // items per page
-    const skipValues = pageNumber * intLimit
+    // Try to get from cache first
+    const cachedProducts = await ProductCacheService.getCachedProducts(page);
+    if (cachedProducts) {
+        res.json({
+            success: true,
+            data: cachedProducts,
+            source: "cache"
+        });
+        return
+    }
 
-    const totalCount = await Product.count()
     const products = await Product.findMany({
-        skip: skipValues,
-        take: intLimit,
-        orderBy: [{id: 'asc'}],
+        skip,
+        take: limit,
+        orderBy: [{ id: 'asc' }],
         cacheStrategy: {
             ttl: 60 * 5, // 5 min
             swr: 60 * 10 // 10min
         }
     });
+    const total = await Product.count()
 
-    res.status(200).json({
-        page: pageNumber + 1,
-        count: products.length,
-        totalCount,
-        data: products
-    });
+
+    res.json({
+        pagination: {
+            page,
+            limit,
+            total,
+            pages: Math.ceil(total / limit)
+        },
+        data: products,
+        source: "database"
+    })
 });
 
 // @ desc --- Get Featured Products
 // @ route  --GET-- [base_api]/products/featured
 export const fetchFeaturedProducts = asyncHandler(async (req: Request, res: Response) => {
-    const {page} = req.query
-    const pageNumber = typeof page === "string" ? Number(page) - 1 : 0
-    const limit = 6 // items per page
-    const skipValues = pageNumber * limit
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 10;
+    const skip = (page - 1) * limit
 
     const data = await prisma.product.findMany({
-        where: {featured: true},
-        skip: skipValues,
+        where: { featured: true },
+        skip,
         take: limit,
-        orderBy: [{id: 'asc'}],
+        orderBy: [{ id: 'asc' }],
         cacheStrategy: {
             ttl: 60 * 5, // 5 min
             swr: 60 * 10 // 10min
         }
     });
 
-    res.status(200).json({
-        page: pageNumber + 1,
-        count: data.length,
-        data
-    });
+    res.json({
+        pagination: {
+            page,
+            limit,
+            count: data.length,
+        },
+        data,
+        source: "database"
+    })
 });
 
 // @ desc --- Delete Product
 // @ route  --DELETE-- [base_api]/products/:id
 export const deleteProduct = asyncHandler(async (req: Request, res: Response) => {
-    const {id} = req.params;
+    const { id } = req.params;
 
-    const deleteProduct = await Product.delete({where: {id: Number(id)}});
+    const deleteProduct = await Product.delete({ where: { id: Number(id) } });
     if (!deleteProduct) {
         res.status(400);
         throw new Error("Failed to delete product. Try again later");
     }
 
-    res.status(200).json({message: "Product deleted successfully"});
+    res.status(200).json({ message: "Product deleted successfully" });
 })

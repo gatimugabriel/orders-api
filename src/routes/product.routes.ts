@@ -3,7 +3,7 @@ import {
     createProduct,
     deleteProduct,
     fetchFeaturedProducts,
-    fetchProducts,
+    getAllProducts,
     getProduct,
     searchProduct,
     updateProduct
@@ -16,7 +16,7 @@ import { isContentManager, isAdminOrManager } from "../middleware/auth/role.midd
 const router = Router()
 
 //___ public routes ___//
-router.get('/', fetchProducts)
+router.get('/', getAllProducts)
 router.get('/:id', getProduct)
 router.get('/search/s', searchProduct)
 router.get('/featured', fetchFeaturedProducts)

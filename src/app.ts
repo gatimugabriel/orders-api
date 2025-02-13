@@ -1,14 +1,14 @@
-import express, { Express, Request, Response, NextFunction } from "express";
-import cors from "cors";
-import cookieParser from "cookie-parser";
-import morgan from "morgan";
-import dotenv from "dotenv";
+import express, { Express, Request, Response } from "express";
 import fileUpload from "express-fileupload";
 import { PrismaClient } from "@prisma/client";
+import cookieParser from "cookie-parser";
+import cors from "cors";
+import dotenv from "dotenv";
+import morgan from "morgan";
 
-import routes from "./routes";
-import { notFound, errorHandler } from "./middleware/errors/global.middleware";
 import { setupSwagger } from "./config/swagger";
+import { errorHandler, notFound } from "./middleware/errors/global.middleware";
+import routes from "./routes";
 
 dotenv.config()
 export const app: Express = express();
@@ -16,7 +16,7 @@ export const app: Express = express();
 export const prisma = new PrismaClient()
 
 const PORT = process.env["PORT"] || 8080;
-const NODE_ENV = process.env["NODE_ENV"] || 'development';
+const ENVIRONMENT = process.env["ENVIRONMENT"] || 'development';
 const DB_NAME = process.env["DB_NAME"];
 
 async function main() {
@@ -58,11 +58,9 @@ async function main() {
     app.use(notFound)
     app.use(errorHandler)
 
-
-
     app.listen(PORT, async () => {
         console.log(
-            `Server running in "${NODE_ENV}" mode on port: "${PORT}"    `
+            `Server running in "${ENVIRONMENT}" mode on port: "${PORT}"    `
         );
     });
 }
