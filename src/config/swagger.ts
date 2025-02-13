@@ -1,10 +1,27 @@
 import swaggerUi from 'swagger-ui-express';
-import YAML from 'yamljs';
-import path from 'path';
+import swaggerJsdoc from 'swagger-jsdoc';
 import { Express } from 'express';
 
-const swaggerDocument = YAML.load(path.join(__dirname, '../swagger.yaml'));
+const options = {
+  definition: {
+    openapi: '3.0.0',
+    info: {
+      title: 'Orders API',
+      version: '1.0.0',
+      description: 'API for managing orders and products',
+    },
+    servers: [
+      {
+        url: 'http://localhost:8080/api/v1',
+        description: 'Local development server',
+      },
+    ],
+  },
+  apis: ['./src/controllers/*.ts', './src/routes/*.ts'],
+};
+
+const specs = swaggerJsdoc(options);
 
 export const setupSwagger = (app: Express) => {
-  app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
+  app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(specs));
 };

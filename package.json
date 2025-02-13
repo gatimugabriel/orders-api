@@ -3,13 +3,13 @@
 	"author": "Gabriel Gatimu",
 	"license": "MIT",
 	"scripts": {
-	  "queries": "ts-node ./src/queries.ts",
-	  "caching": "ts-node ./src/caching.ts",
-	  "realtime": "ts-node ./src/realtime.ts",
-	  "start": "ts-node ./src/app.ts",
-	  "dev": "nodemon --watch 'src/**/*' --exec 'ts-node' src/app.ts",
-	  "dev2": "ts-node-dev --respawn --transpile-only src/app.ts",
-	  "seed": "ts-node ./prisma/dummyData/seeder.ts"
+		"queries": "ts-node ./src/queries.ts",
+		"caching": "ts-node ./src/caching.ts",
+		"realtime": "ts-node ./src/realtime.ts",
+		"start": "ts-node ./src/app.ts",
+		"dev": "nodemon --watch 'src/**/*' --exec 'ts-node' src/app.ts",
+		"dev2": "ts-node-dev --respawn --transpile-only src/app.ts",
+		"seed": "ts-node ./prisma/dummyData/seeder.ts"
 	},
 	"dependencies": {
 		"@prisma/client": "^6.3.1",
@@ -30,6 +30,7 @@
 		"jsonwebtoken": "^9.0.2",
 		"morgan": "^1.10.0",
 		"nodemailer": "^6.10.0",
+		"swagger-jsdoc": "^6.2.8",
 		"swagger-ui-express": "^5.0.1",
 		"yamljs": "^0.3.0"
 	},
@@ -49,6 +50,7 @@
 		"@types/jsonwebtoken": "^9.0.8",
 		"@types/morgan": "^1.9.9",
 		"@types/nodemailer": "^6.4.17",
+		"@types/swagger-jsdoc": "^6.0.4",
 		"@types/swagger-ui-express": "^4.1.7",
 		"@types/yamljs": "^0.2.34",
 		"ts-node": "^10.9.2",
