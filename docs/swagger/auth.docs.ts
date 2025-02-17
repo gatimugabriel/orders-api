@@ -65,11 +65,18 @@
  *                 type: string
  *               password:
  *                 type: string
- *               name:
+ *               first_name:
  *                 type: string
+ *               last_name:
+ *                 type: string
+ *               role:
+ *                 type: string
+ *                 enum: [USER, ADMIN, "MANAGER"]
  *     responses:
  *       201:
  *         description: User registered successfully
  *       400:
  *         description: Invalid input
+ *       422:
+ *        description: Unprocessable Entity
  */
