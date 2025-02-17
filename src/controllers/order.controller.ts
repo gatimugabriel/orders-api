@@ -1,11 +1,11 @@
-import { Request, Response } from "express";
-import { OrderCacheService } from "../services/cache/order-cache.service";
-import { ExtendedRequest } from "../@types/express";
+import {Request, Response} from "express";
+import {OrderCacheService} from "../services/cache/order_cache.service";
+import {ExtendedRequest} from "../@types/express";
 import asyncHandler from "express-async-handler";
-import { OrderStatus, Prisma, PrismaClient } from "@prisma/client";
-import { queueOrderConfirmationEmail } from "../workers/email.worker";
-import { withAccelerate } from "@prisma/extension-accelerate";
-import { SearchOrderQuery } from "../@types/types";
+import {OrderStatus, Prisma, PrismaClient} from "@prisma/client";
+import {queueOrderConfirmationEmail} from "../workers/email.worker";
+import {withAccelerate} from "@prisma/extension-accelerate";
+import {SearchOrderQuery} from "../@types/types";
 
 const prisma = new PrismaClient({
     transactionOptions: {
@@ -19,7 +19,7 @@ const Order = prisma.order
 // @ desc --- Create Order
 // @ route  --POST-- [base_api]/orders
 export const createOrder = asyncHandler(async (req: ExtendedRequest, res: Response) => {
-    const { user } = req;
+    const {user} = req;
     const userID = user?.userID as number;
     const {
         items, // [ {productID, quantity}, {...}]
@@ -75,7 +75,7 @@ export const createOrder = asyncHandler(async (req: ExtendedRequest, res: Respon
             });
 
             const orderData = {
-                user: { connect: { id: userID } },
+                user: {connect: {id: userID}},
                 totalItems,
                 totalPrice,
                 deliveryMethod,
@@ -88,7 +88,7 @@ export const createOrder = asyncHandler(async (req: ExtendedRequest, res: Respon
             //____ Create PAYMENT record ____//
             const payment = await tx.payment.create({
                 data: {
-                    user: { connect: { id: userID } },
+                    user: {connect: {id: userID}},
                     amount: totalPrice,
                     paymentGatewayProvider,
                     paymentMethod,
@@ -100,7 +100,7 @@ export const createOrder = asyncHandler(async (req: ExtendedRequest, res: Respon
             const order = await tx.order.create({
                 data: {
                     ...orderData,
-                    payment: { connect: { id: payment.id } }  // Connect the order to payment
+                    payment: {connect: {id: payment.id}}  // Connect the order to payment
                 },
                 include: {
                     user: true
@@ -113,7 +113,7 @@ export const createOrder = asyncHandler(async (req: ExtendedRequest, res: Respon
             // Queue order confirmation email
             await queueOrderConfirmationEmail(order);
 
-            return { order, payment };
+            return {order, payment};
         });
 
         res.status(201).json({
@@ -129,49 +129,14 @@ export const createOrder = asyncHandler(async (req: ExtendedRequest, res: Respon
 
 // @ desc --- Get Single Order by ID
 // @ route  --GET-- [base_api]/orders/:id
-export const getOrderById = asyncHandler(async (req: Request, res: Response) => {
-    const orderId = parseInt(req.params.id);
-
-    // Try to get from cache first
-    const cachedOrder = await OrderCacheService.getCachedOrder(orderId);
-    if (cachedOrder) {
-        res.json({
-            success: true,
-            data: cachedOrder,
-            source: "cache"
-        })
-        return
-    }
-
-    // If not in cache, get from database
-    const order = await Order.findUnique({
-        where: { id: orderId },
-        include: {
-            user: { select: { email: true } },
-            items: {
-                include: {
-                    product: true
-                }
-            },
-            // payment: true,
-        },
-        cacheStrategy: {
-            ttl: 3600, // 1 hour
-            swr: 7200 // 2 hours
-        }
-    });
-    if (!order) {
-        res.status(404);
-        throw new Error("Order not found or may have been deleted");
-    }
-
-    // Cache the order for future requests
-    await OrderCacheService.cacheOrder(orderId, order);
+export const getOrderById = asyncHandler(async (req: ExtendedRequest, res: Response) => {
+    const order = req.order!; // Attached by order middleware
+    const orderSource = req.orderSource!; // Attached by order middleware
 
     res.json({
         success: true,
         data: order,
-        source: "database"
+        source: orderSource
     });
 });
 
@@ -185,15 +150,20 @@ export const getAllOrders = asyncHandler(async (req: Request, res: Response) => 
 
     // Try to get from cache first if no status filter
     if (!status) {
-        const cachedOrders = await OrderCacheService.getCachedOrders(page);
+        const cachedOrders = await OrderCacheService.getCachedPageOrders(page, limit);
         if (cachedOrders) {
             res.json({
-                success: true,
+                pagination: {
+                    page,
+                    limit,
+                    total: cachedOrders.length,
+                    pages: Math.ceil(cachedOrders.length / limit)
+                },
                 data: cachedOrders,
                 source: "cache"
             });
+            return
         }
-        return
     }
 
     const orders = await Order.findMany({
@@ -214,7 +184,7 @@ export const getAllOrders = asyncHandler(async (req: Request, res: Response) => 
                     }
                 }
             },
-            user: { select: { email: true } },
+            user: {select: {email: true}},
             // payment: true
         },
         orderBy: {
@@ -227,6 +197,10 @@ export const getAllOrders = asyncHandler(async (req: Request, res: Response) => 
 
     });
     const total = await Order.count();
+    //cache the orders
+    if (!status) {
+        await OrderCacheService.cachePageOrders(page, limit, orders);
+    }
 
     res.json({
         pagination: {
@@ -267,26 +241,26 @@ export const searchOrder = asyncHandler(async (req: Request, res: Response) => {
     }
 
     // @ts-ignore
-    whereClause.AND.push({ status: { not: 'CANCELLED' } })
+    whereClause.AND.push({status: {not: 'CANCELLED'}})
 
     // optional filters
     if (shippingAddress) {
         // @ts-ignore
         whereClause.AND.push({
-            shippingAddress: { contains: shippingAddress, mode: 'insensitive' }
+            shippingAddress: {contains: shippingAddress, mode: 'insensitive'}
         })
     }
 
     if (deliveryMethod) {
         // @ts-ignore
         whereClause.AND.push({
-            deliveryMethod: { contains: deliveryMethod, mode: 'insensitive' }
+            deliveryMethod: {contains: deliveryMethod, mode: 'insensitive'}
         })
     }
 
     if (status && Object.values(OrderStatus).includes(status as OrderStatus)) {
         // @ts-ignore
-        whereClause.AND.push({ status })
+        whereClause.AND.push({status})
     }
 
     if (minPrice || maxPrice) {
@@ -364,7 +338,7 @@ export const searchOrder = asyncHandler(async (req: Request, res: Response) => {
                 createdAt: 'desc'
             }
         }),
-        Order.count({ where: whereClause })
+        Order.count({where: whereClause})
     ])
 
     // pagination metadata
@@ -386,14 +360,92 @@ export const searchOrder = asyncHandler(async (req: Request, res: Response) => {
     })
 })
 
+export const searchMyOrders = asyncHandler(async (req: ExtendedRequest, res: Response) => {
+    const {userID} = req.user!
+})
+
+export const getMyOrders = asyncHandler(async (req: ExtendedRequest, res: Response) => {
+    const {userID} = req.user!
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 10;
+    const status = req.query.status as string;
+    const skip = (page - 1) * limit;
+
+    // Try to get from cache first if no status filter
+    const cachedOrders = await OrderCacheService.getCachedUserOrders(userID, limit);
+    if (cachedOrders) {
+        res.json({
+            pagination: {
+                page,
+                limit,
+                // total: cachedOrders.length,
+                // pages: Math.ceil(cachedOrders.length / limit)
+            },
+            data: cachedOrders,
+            source: "cache"
+        });
+        return
+    }
+
+    const orders = await Order.findMany({
+        where: {userID: Number(userID)},
+        skip,
+        take: limit,
+        include: {
+            items: {
+                include: {
+                    product: {
+                        select: {
+                            name: true,
+                            description: true,
+                            images: true,
+                            category: true,
+                            brand: true,
+                            slug: true
+                        }
+                    }
+                }
+            },
+            user: {select: {email: true}},
+            // payment: true
+        },
+        orderBy: {
+            createdAt: 'desc'
+        },
+        cacheStrategy: {
+            ttl: 60, // 1 min
+            swr: 120 // 2 min
+        }
+
+    });
+    const total = await Order.count({where: {userID: Number(userID)}});
+    //cache the orders
+    if (orders.length > 0) {
+        console.log("orders", orders)
+        await OrderCacheService.cacheUserOrders(userID, limit, orders);
+    }
+
+    res.json({
+        pagination: {
+            page,
+            limit,
+            total,
+            pages: Math.ceil(total / limit)
+        },
+        data: orders,
+        source: "database"
+    });
+})
+
+
 // @ desc --- Update Product
 // @ route  --PUT-- [base_api]/orders/:id
 export const updateOrder = asyncHandler(async (req: Request, res: Response) => {
-    const { id } = req.params;
-    const { status, shippingAddress, deliveryMethod } = req.body;
+    const {id} = req.params;
+    const {status, shippingAddress, deliveryMethod} = req.body;
 
     const updateOrder = await Order.update({
-        where: { id: Number(id) },
+        where: {id: Number(id)},
         data: {
             status,
             shippingAddress,
@@ -414,10 +466,10 @@ export const updateOrder = asyncHandler(async (req: Request, res: Response) => {
 // @ desc --- Delete Order
 // @ route  --DELETE-- [base_api]/orders/:id
 export const deleteOrder = asyncHandler(async (req: Request, res: Response) => {
-    const { id } = req.params;
+    const {id} = req.params;
 
     const deleteOrder = await Order.update({
-        where: { id: Number(id) },
+        where: {id: Number(id)},
         data: {
             status: "CANCELLED",
         }
@@ -428,5 +480,5 @@ export const deleteOrder = asyncHandler(async (req: Request, res: Response) => {
         throw new Error("Failed to delete Order. Try again later");
     }
 
-    res.status(200).json({ message: "Order deleted successfully" });
+    res.status(200).json({message: "Order deleted successfully"});
 })

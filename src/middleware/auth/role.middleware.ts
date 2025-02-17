@@ -1,8 +1,8 @@
-import { Response, NextFunction } from 'express'
-import { ExtendedRequest } from '../../@types/express'
+import {NextFunction, Response} from 'express'
+import {ExtendedRequest} from '../../@types/express'
 import asyncHandler from 'express-async-handler'
 
-type RoleType = 'ADMIN' | 'MANAGER' | 'EDITOR'
+type RoleType = 'ADMIN' | 'MANAGER'
 
 export const hasRoles = (allowedRoles: RoleType[]) => {
     return asyncHandler(async (
@@ -12,19 +12,13 @@ export const hasRoles = (allowedRoles: RoleType[]) => {
     ) => {
         // user is set by authenticate middleware
         if (!req.user) {
-            res.status(401).json({
-                success: false,
-                message: 'User not authenticated'
-            })
-            return
+            res.status(401)
+            throw new Error('Login First!')
         }
 
         if (!allowedRoles.includes(req.user.role as RoleType)) {
-            res.status(403).json({
-                success: false,
-                message: 'Insufficient permissions'
-            })
-            return
+            res.status(403)
+            throw new Error('Insufficient permissions')
         }
 
         next()
@@ -33,4 +27,3 @@ export const hasRoles = (allowedRoles: RoleType[]) => {
 
 export const isAdmin = hasRoles(['ADMIN'])
 export const isAdminOrManager = hasRoles(['ADMIN', 'MANAGER'])
-export const isContentManager = hasRoles(['ADMIN', 'MANAGER', 'EDITOR'])

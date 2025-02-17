@@ -10,8 +10,10 @@ import {Request} from "express";
 // }
 
 interface ExtendedRequest extends Request {
-  user?: {
-    userID: number | string; [key: string]: any,
-    role: string,
-  };
+    user?: {
+        userID: number | string; [key: string]: any,
+        role: string,
+    },
+    order?: unknown;
+    orderSource?: "cache" | "database";
 }

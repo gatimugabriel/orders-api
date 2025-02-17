@@ -11,7 +11,7 @@ import {
 import { requireBody, validate } from "../middleware/validation/base.middleware"
 import { authenticate } from "../middleware/auth/auth.middleware"
 import { validateProductEntry } from "../middleware/validation/product.middleware"
-import { isContentManager, isAdminOrManager } from "../middleware/auth/role.middleware"
+import { isAdminOrManager } from "../middleware/auth/role.middleware"
 
 const router = Router()
 
@@ -27,7 +27,7 @@ router.use(authenticate)
 router.post('/',
     [
         requireBody,
-        isContentManager,
+        isAdminOrManager,
         ...validateProductEntry,
         validate
     ],
