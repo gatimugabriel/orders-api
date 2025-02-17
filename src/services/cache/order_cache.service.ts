@@ -1,10 +1,5 @@
-import Redis from 'ioredis';
 import {Order} from '@prisma/client';
-
-const redis = new Redis({
-    host: process.env.REDIS_HOST || 'localhost',
-    port: parseInt(process.env.REDIS_PORT || '6379')
-});
+import {redis} from "../../config/redis.config";
 
 /**
  * Service for handling order-related caching operations using Redis
