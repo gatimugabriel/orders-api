@@ -103,7 +103,12 @@ export const createOrder = asyncHandler(async (req: ExtendedRequest, res: Respon
                     payment: {connect: {id: payment.id}}  // Connect the order to payment
                 },
                 include: {
-                    user: true
+                    user: true,
+                    items: {
+                        include: {
+                            product: true,
+                        },
+                    },
                 }
             });
 
@@ -368,10 +373,9 @@ export const getMyOrders = asyncHandler(async (req: ExtendedRequest, res: Respon
     const {userID} = req.user!
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 10;
-    const status = req.query.status as string;
     const skip = (page - 1) * limit;
 
-    // Try to get from cache first if no status filter
+    // Try to get from cache first
     const cachedOrders = await OrderCacheService.getCachedUserOrders(userID, limit);
     if (cachedOrders) {
         res.json({
@@ -416,7 +420,6 @@ export const getMyOrders = asyncHandler(async (req: ExtendedRequest, res: Respon
             ttl: 60, // 1 min
             swr: 120 // 2 min
         }
-
     });
     const total = await Order.count({where: {userID: Number(userID)}});
     //cache the orders

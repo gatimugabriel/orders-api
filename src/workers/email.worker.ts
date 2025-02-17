@@ -1,5 +1,6 @@
 import Queue from 'bull';
 import {sendMail} from '../utils/mailer.util';
+import {styleOrderDetails} from "../views/order_body_template";
 
 const emailWorker = new Queue('email-queue', {
     redis: {
@@ -17,41 +18,7 @@ emailWorker.process(async (job: any) => {
 });
 
 export const queueOrderConfirmationEmail = async (orderDetails: any) => {
-    const subject = 'Order Confirmation';
-    const htmlBody = `
-        <style>
-          body {
-            font-family: Arial, sans-serif;
-            background-color: #f4f4f4;
-            margin: 0;
-            padding: 0;
-          }
-          .container {
-            max-width: 600px;
-            margin: 0 auto;
-            padding: 20px;
-            background-color: #fff;
-            border-radius: 5px;
-            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-          }
-          h1 {
-            color: #333;
-          }
-          p {
-            color: #666;
-          }
-        </style>
-
-      <body>
-        <div class="container">
-          <h1>Order Confirmation</h1>
-          <p>Thank you for your order!</p>
-          <p>Order ID: ${orderDetails.id}</p>
-          <p>Total Amount: $${orderDetails.totalPrice}</p>
-          <p>Status: ${orderDetails.status}</p>
-        </div>
-      </body>
-  `;
+    const {subject, htmlBody} = styleOrderDetails(orderDetails)
 
     await emailWorker.add({
         email: orderDetails.user.email,
