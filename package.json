@@ -7,8 +7,8 @@
 		"caching": "ts-node ./src/caching.ts",
 		"realtime": "ts-node ./src/realtime.ts",
 		"start": "ts-node ./src/app.ts",
-		"dev": "nodemon --watch 'src/**/*' --exec 'ts-node' src/app.ts",
-		"dev2": "ts-node-dev --respawn --transpile-only src/app.ts",
+		"dev": "nodemon --watch 'src/**/*' --watch docs/**/* --exec 'ts-node' src/app.ts",
+		"dev2": "ts-node-dev --respawn --transpile-only --watch docs src/app.ts",
 		"seed": "ts-node ./prisma/dummyData/seeder.ts"
 	},
 	"dependencies": {
