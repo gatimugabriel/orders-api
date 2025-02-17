@@ -25,17 +25,12 @@ async function main() {
         process.env["CLIENT_ORIGIN"],
         process.env["ADMIN_ORIGIN"],
         process.env["SERVER_URL"],
-    ].filter(Boolean) as string[];
+    ].filter((origin) => origin) as string[];
 
     const corsOptions = {
         origin: allowedOrigins,
         credentials: true,
-        methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS,CONNECT,TRACE',
-        allowedHeaders: ['Content-Type', 'Authorization'],
-        exposedHeaders: ['Content-Length', 'X-JSON']
     };
-
-    app.options('*', cors(corsOptions));
     app.use(cors(corsOptions));
 
     app.use(express.json({ limit: '10mb' }));
