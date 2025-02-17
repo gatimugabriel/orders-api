@@ -460,6 +460,9 @@ export const updateOrder = asyncHandler(async (req: Request, res: Response) => {
         throw new Error("Order failed to update. Try again later");
     }
 
+    // invalidate cache
+    await OrderCacheService.invalidateOrderCache(Number(id));
+
     res.status(200).json({
         message: "Order updated successfully",
         data: updateOrder
@@ -477,11 +480,13 @@ export const deleteOrder = asyncHandler(async (req: Request, res: Response) => {
             status: "CANCELLED",
         }
     });
-
     if (!deleteOrder) {
         res.status(400);
         throw new Error("Failed to delete Order. Try again later");
     }
+
+    // invalidate cache
+    await OrderCacheService.invalidateOrderCache(Number(id));
 
     res.status(200).json({message: "Order deleted successfully"});
 })
