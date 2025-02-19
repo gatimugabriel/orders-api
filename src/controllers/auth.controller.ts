@@ -79,7 +79,7 @@ export const signIn = asyncHandler(async (req: ExtendedRequest, res: Response, n
 
     const user = await User.findUnique({ where: { email } });
     if (!user) {
-        res.status(404);
+        res.status(401);
         throw new Error("Invalid credentials");
     }
 
