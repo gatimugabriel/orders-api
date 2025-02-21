@@ -56,6 +56,13 @@
  *                 type: integer
  *               featured:
  *                 type: boolean
+ *               weight:
+ *                  type: integer
+ *               slug:
+ *                  type: string
+ *               images:
+ *                 type: string
+ *                 format: binary
  *     responses:
  *       201:
  *         description: Product created successfully
@@ -142,7 +149,7 @@
  *     requestBody:
  *       required: true
  *       content:
- *         application/json:
+ *         multipart/form-data:
  *           schema:
  *             type: object
  *             properties:
@@ -150,12 +157,21 @@
  *                 type: string
  *               description:
  *                 type: string
+ *               category:
+ *                 type: string
+ *               brand:
+ *                 type: string
  *               price:
  *                 type: number
- *               categoryId:
- *                 type: integer
  *               stock:
  *                 type: integer
+ *               featured:
+ *                 type: boolean
+ *               slug:
+ *                  type:string
+ *               images:
+ *                 type: string
+ *                 format: binary
  *     responses:
  *       200:
  *         description: Product updated successfully
@@ -165,6 +181,8 @@
  *         description: Forbidden - Insufficient permissions
  *       404:
  *         description: Product not found
+ *       422:
+ *          description: Unprocessable entity (Invalid input data)
  
 
 
