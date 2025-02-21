@@ -1,15 +1,14 @@
-import { Request, Response } from "express";
+import {Request, Response} from "express";
 import asyncHandler from "express-async-handler";
-import { Prisma, PrismaClient } from "@prisma/client";
-import { withAccelerate } from "@prisma/extension-accelerate";
-import { cloudinaryUpload } from "../utils/media.util";
-import { UploadedFile } from "express-fileupload";
-import { SearchProductQuery } from "../@types/types";
-import { ProductCacheService } from "../services/cache/product-cache.service";
+import {Prisma, PrismaClient} from "@prisma/client";
+import {withAccelerate} from "@prisma/extension-accelerate";
+import {cloudinaryUpload} from "../utils/media.util";
+import {UploadedFile} from "express-fileupload";
+import {SearchProductQuery} from "../@types/types";
+import {ProductCacheService} from "../services/cache/product-cache.service";
 
 const prisma = new PrismaClient().$extends(withAccelerate());
 const Product = prisma.product
-
 
 export const createProduct = asyncHandler(async (req: Request, res: Response) => {
     const {
@@ -87,17 +86,14 @@ export const createProduct = asyncHandler(async (req: Request, res: Response) =>
 // @ desc --- Update Product
 // @ route  --PUT-- [base_api]/products/:id
 export const updateProduct = asyncHandler(async (req: Request, res: Response) => {
-    const { id } = req.params
+    const {id} = req.params
     const existingProduct = await Product.findUnique({
-        where: { id: Number(id) }
+        where: {id: Number(id)}
     })
 
     if (!existingProduct) {
-        res.status(404).json({
-            success: false,
-            message: "Product not found"
-        })
-        return
+        res.status(404)
+        throw new Error("Product not found")
     }
 
     const {
@@ -114,33 +110,28 @@ export const updateProduct = asyncHandler(async (req: Request, res: Response) =>
         featured
     } = req.body
 
-    const updateData: any = {}
+    const newData: any = {}
 
-    if (category) {
+    if (category !== undefined) {
         try {
-            updateData.category = typeof category === 'string' ?
+            newData.category = typeof category === 'string' ?
                 (category.includes('[') ? JSON.parse(category) : category.split(',').map(c => c.trim())) :
                 category
         } catch (error) {
-            updateData.category = [category]
+            newData.category = [category]
         }
     }
 
-    // Handle numeric fields if provided
-    if (price) updateData.price = parseFloat(price) || existingProduct.price
-    if (stock) updateData.stock = parseInt(stock) || existingProduct.stock
-    if (discountRate) updateData.discountRate = parseInt(discountRate) || existingProduct.discountRate
-    if (weight) updateData.weight = parseInt(weight) || existingProduct.weight
-
-    if (featured !== undefined) {
-        updateData.featured = featured === 'true' || featured === true
-    }
-
-    if (name) updateData.name = name
-    if (description) updateData.description = description
-    if (brand) updateData.brand = brand
-    if (dimensions) updateData.dimensions = dimensions
-    if (slug) updateData.slug = slug
+    if (price !== undefined) newData.price = parseFloat(price)
+    if (stock !== undefined) newData.stock = parseInt(stock)
+    if (discountRate !== undefined) newData.discountRate = parseInt(discountRate)
+    if (weight !== undefined) newData.weight = parseInt(weight)
+    if (featured !== undefined) newData.featured = featured === 'true' || featured === true
+    if (name !== undefined) newData.name = name
+    if (description !== undefined) newData.description = description
+    if (brand !== undefined) newData.brand = brand
+    if (dimensions !== undefined) newData.dimensions = dimensions
+    if (slug !== undefined) newData.slug = slug
 
     // Handle image uploads if present
     if (req.files) {
@@ -151,7 +142,7 @@ export const updateProduct = asyncHandler(async (req: Request, res: Response) =>
 
             if (imageArray.length > 0) {
                 const uploadImagesResult = await cloudinaryUpload(imageArray, name || existingProduct.name)
-                updateData.images = uploadImagesResult.map(image => image.secure_url)
+                newData.images = uploadImagesResult.map(image => image.secure_url)
             }
         } catch (error) {
             res.status(400).json({
@@ -164,8 +155,8 @@ export const updateProduct = asyncHandler(async (req: Request, res: Response) =>
     }
 
     const data = await Product.update({
-        where: { id: Number(id) },
-        data: updateData
+        where: {id: Number(id)},
+        data: newData
     })
 
     res.status(200).json({
@@ -177,7 +168,7 @@ export const updateProduct = asyncHandler(async (req: Request, res: Response) =>
 
 // @ desc --- Get Single Product by ID
 export const getProduct = asyncHandler(async (req: Request, res: Response) => {
-    const { id } = req.params;
+    const {id} = req.params;
     const numericId = Number(id);
 
     // Try to get from cache first
@@ -193,7 +184,7 @@ export const getProduct = asyncHandler(async (req: Request, res: Response) => {
 
     // If not in cache, get from database
     const data = await Product.findUnique({
-        where: { id: numericId },
+        where: {id: numericId},
         cacheStrategy: {
             ttl: 3600, // 1 hour
             swr: 7200 // 2 hours
@@ -246,19 +237,11 @@ export const searchProduct = asyncHandler(async (req: Request, res: Response) =>
         // @ts-ignore
         whereClause.AND.push({
             OR: [
-                { name: { contains: searchTerm, mode: 'insensitive' } },
-                { description: { contains: searchTerm, mode: 'insensitive' } }
+                {name: {contains: searchTerm, mode: 'insensitive'}},
+                {description: {contains: searchTerm, mode: 'insensitive'}}
             ]
         })
     }
-
-    // *TODO : Fix category check (brings bug if included)
-    // if (category) {
-    //     // @ts-ignore
-    //     whereClause.AND.push({
-    //         category: { equals: category }
-    //     })
-    // }
 
     if (minPrice || maxPrice) {
         //@ts-ignore
@@ -273,7 +256,7 @@ export const searchProduct = asyncHandler(async (req: Request, res: Response) =>
     if (brand) {
         //@ts-ignore
         whereClause.AND.push({
-            brand: { equals: brand, mode: 'insensitive' }
+            brand: {equals: brand, mode: 'insensitive'}
         })
     }
 
@@ -281,16 +264,16 @@ export const searchProduct = asyncHandler(async (req: Request, res: Response) =>
     const orderBy: Prisma.ProductOrderByWithRelationInput = (() => {
         switch (sortBy) {
             case 'price_asc':
-                return { price: 'asc' }
+                return {price: 'asc'}
             case 'price_desc':
-                return { price: 'desc' }
+                return {price: 'desc'}
             case 'name_asc':
-                return { name: 'asc' }
+                return {name: 'asc'}
             case 'name_desc':
-                return { name: 'desc' }
+                return {name: 'desc'}
             case 'newest':
             default:
-                return { createdAt: 'desc' }
+                return {createdAt: 'desc'}
         }
     })()
 
@@ -302,21 +285,21 @@ export const searchProduct = asyncHandler(async (req: Request, res: Response) =>
             take: limitNum,
             orderBy
         }),
-        Product.count({ where: whereClause })
+        Product.count({where: whereClause})
     ])
 
     // Calculate aggregations
     const priceStats = await Product.aggregate({
         where: whereClause,
-        _min: { price: true },
-        _max: { price: true },
-        _avg: { price: true }
+        _min: {price: true},
+        _max: {price: true},
+        _avg: {price: true}
     })
 
     // unique brands filtering
     const uniqueBrands = await Product.findMany({
         where: whereClause,
-        select: { brand: true },
+        select: {brand: true},
         distinct: ['brand']
     })
 
@@ -371,7 +354,7 @@ export const getAllProducts = asyncHandler(async (req: Request, res: Response) =
     const products = await Product.findMany({
         skip,
         take: limit,
-        orderBy: [{ id: 'asc' }],
+        orderBy: [{id: 'asc'}],
         cacheStrategy: {
             ttl: 60 * 5, // 5 min
             swr: 60 * 10 // 10min
@@ -400,10 +383,10 @@ export const fetchFeaturedProducts = asyncHandler(async (req: Request, res: Resp
     const skip = (page - 1) * limit
 
     const data = await prisma.product.findMany({
-        where: { featured: true },
+        where: {featured: true},
         skip,
         take: limit,
-        orderBy: [{ id: 'asc' }],
+        orderBy: [{id: 'asc'}],
         cacheStrategy: {
             ttl: 60 * 5, // 5 min
             swr: 60 * 10 // 10min
@@ -424,13 +407,13 @@ export const fetchFeaturedProducts = asyncHandler(async (req: Request, res: Resp
 // @ desc --- Delete Product
 // @ route  --DELETE-- [base_api]/products/:id
 export const deleteProduct = asyncHandler(async (req: Request, res: Response) => {
-    const { id } = req.params;
+    const {id} = req.params;
 
-    const deleteProduct = await Product.delete({ where: { id: Number(id) } });
+    const deleteProduct = await Product.delete({where: {id: Number(id)}});
     if (!deleteProduct) {
         res.status(400);
         throw new Error("Failed to delete product. Try again later");
     }
 
-    res.status(200).json({ message: "Product deleted successfully" });
+    res.status(200).json({message: "Product deleted successfully"});
 })

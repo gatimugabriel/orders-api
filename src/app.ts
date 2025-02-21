@@ -64,8 +64,6 @@ main()
     .then(async () => {
         console.log(`Connecting to database...`);
         console.log(`Connected to ${DB_NAME} DB!`)
-        console.log(`${process.env.DATABASE_URL}`)
-        console.log(`${process.env.DIRECT_DATABASE_URL}`)
         await prisma.$disconnect()
     })
     .catch(async (e) => {
