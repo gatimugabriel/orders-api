@@ -32,104 +32,98 @@ export const createOrder = asyncHandler(async (req: ExtendedRequest, res: Respon
     } = req.body;
 
     // --- START TRANSACTION --- //
-    try {
-        const transaction = await prisma.$transaction(async (tx: any) => {
+    const transaction = await prisma.$transaction(async (tx: any) => {
 
-            // Fetch all products and calculate totals
-            const products = await tx.product.findMany({
-                where: {
-                    id: {
-                        in: items.map((item: any) => item.productID)
-                    }
+        // Fetch all products and calculate totals
+        const products = await tx.product.findMany({
+            where: {
+                id: {
+                    in: items.map((item: any) => item.productID)
                 }
-            });
-
-            // Validate all products exist
-            if (products.length !== items.length) {
-                // Get which products are missing in fetched products
-                const missingProducts = items.filter((item: any) => !products.find((p: any) => p.id === item.productID));
-                res.status(404);
-                throw new Error(`Product(s) with id(s) ${missingProducts.map((p: any) => p.productID).join(', ')} not found`);
             }
+        });
 
-            let totalItems = 0;
-            let totalPrice = 0;
+        // Validate all products exist
+        if (products.length !== items.length) {
+            // Get which products are missing in fetched products
+            const missingProducts = items.filter((item: any) => !products.find((p: any) => p.id === item.productID));
+            res.status(404);
+            throw new Error(`Product(s) with id(s) ${missingProducts.map((p: any) => p.productID).join(', ')} not found`);
+        }
 
-            const orderItems = items.map((item: any) => {
-                const product = products.find((p: any) => p.id === item.productID);
-                if (!product) throw new Error(`Product ${item.productId} not found`);
+        let totalItems = 0;
+        let totalPrice = 0;
 
-                totalItems += item.quantity;
-                const itemPrice = product.price * item.quantity;
-                const discountedPrice = product.discountRate
-                    ? itemPrice * (1 - (product.discountRate / 100))
-                    : itemPrice;
-                totalPrice += discountedPrice;
+        const orderItems = items.map((item: any) => {
+            const product = products.find((p: any) => p.id === item.productID);
+            if (!product) throw new Error(`Product ${item.productId} not found`);
 
-                return {
-                    productID: product.id,
-                    quantity: item.quantity,
-                    price_at_time: product.price,
-                    discount_rate_at_time: product.discountRate || null
-                };
-            });
+            totalItems += item.quantity;
+            const itemPrice = product.price * item.quantity;
+            const discountedPrice = product.discountRate
+                ? itemPrice * (1 - (product.discountRate / 100))
+                : itemPrice;
+            totalPrice += discountedPrice;
 
-            const orderData = {
-                user: {connect: {id: userID}},
-                totalItems,
-                totalPrice,
-                deliveryMethod,
-                shippingAddress,
-                items: {
-                    create: orderItems
-                }
+            return {
+                productID: product.id,
+                quantity: item.quantity,
+                price_at_time: product.price,
+                discount_rate_at_time: product.discountRate || null
             };
+        });
 
-            //____ Create PAYMENT record ____//
-            const payment = await tx.payment.create({
-                data: {
-                    user: {connect: {id: userID}},
-                    amount: totalPrice,
-                    paymentGatewayProvider,
-                    paymentMethod,
-                    paymentMode
-                },
-            });
+        const orderData = {
+            user: {connect: {id: userID}},
+            totalItems,
+            totalPrice,
+            deliveryMethod,
+            shippingAddress,
+            items: {
+                create: orderItems
+            }
+        };
 
-            //____ Create ORDER ____//
-            const order = await tx.order.create({
-                data: {
-                    ...orderData,
-                    payment: {connect: {id: payment.id}}  // Connect the order to payment
-                },
-                include: {
-                    user: true,
-                    items: {
-                        include: {
-                            product: true,
-                        },
+        //____ Create PAYMENT record ____//
+        const payment = await tx.payment.create({
+            data: {
+                user: {connect: {id: userID}},
+                amount: totalPrice,
+                paymentGatewayProvider,
+                paymentMethod,
+                paymentMode
+            },
+        });
+
+        //____ Create ORDER ____//
+        const order = await tx.order.create({
+            data: {
+                ...orderData,
+                payment: {connect: {id: payment.id}}  // Connect the order to payment
+            },
+            include: {
+                user: true,
+                items: {
+                    include: {
+                        product: true,
                     },
-                }
-            });
-
-            // Cache the order
-            await OrderCacheService.cacheOrder(order.id, order);
-
-            // Queue order confirmation email
-            await queueOrderConfirmationEmail(order);
-
-            return {order, payment};
+                },
+            }
         });
 
-        res.status(201).json({
-            message: 'Order placed successfully. You will receive an email confirmation',
-            data: transaction
-        });
-    } catch (error: any) {
-        console.error('\t\t Error : \n', error);
-        res.status(500);
-        throw new Error(error.message || error || 'Something went wrong');
-    }
+        // Cache the order
+        await OrderCacheService.cacheOrder(order.id, order);
+
+        // Queue order confirmation email
+        await queueOrderConfirmationEmail(order);
+
+        return {order, payment};
+    });
+
+    res.status(201).json({
+        message: 'Order placed successfully. You will receive an email confirmation',
+        data: transaction
+    });
 });
 
 // @ desc --- Get Single Order by ID

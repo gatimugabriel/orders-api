@@ -11,8 +11,6 @@ const errorHandler = (error: any, req: Request, res: Response, next: NextFunctio
     let statusCode = res.statusCode === 200 ? 500 : res.statusCode;
     let message = error.meta?.customMessage || error.meta?.cause || error.message || 'Server Error Occurred. Try again later';
 
-    // console.log("ERROR IN MIDDLEWARE", errors)
-
     console.log(`\n\t\t+-+-+-+-+-+++________ ERROR _______+-+-+-+-+-+++\n\n`, error,
         `\n\n\t\t +-+-+-+-+-+++________ END _______+-+-+-+-+-+++\n\n`
     )

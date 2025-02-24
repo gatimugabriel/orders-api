@@ -80,13 +80,13 @@ export const signIn = asyncHandler(async (req: ExtendedRequest, res: Response, n
     const user = await User.findUnique({ where: { email } });
     if (!user) {
         res.status(401);
-        throw new Error("Invalid credentials");
+        throw new Error("Email or password is incorrect");
     }
 
     const isPasswordValid = await bcrypt.compare(password, (user.password as string))
     if (!isPasswordValid) {
         res.status(401)
-        throw new Error("Invalid credentials");
+        throw new Error("Email or password is incorrect");
     }
 
     const { accessToken, refreshToken } = generateAuthTokens(user.id, user.role)
